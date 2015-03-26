@@ -18,7 +18,7 @@ setup(name = "gaqtk",
       test_suite = 'nose.collector',
       packages=find_packages(exclude=['ez_setup', 'test*']),
       namespace_packages = [
-          'viz',
+          'gaqtk',
       ],
       package_data = {},
   )
