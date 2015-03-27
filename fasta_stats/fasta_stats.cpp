@@ -20,11 +20,11 @@ KSEQ_INIT(gzFile, gzread)
 class SequenceInterval {
   public:
     const std::string& seq;
-    const uint64_t start;
-    const uint64_t length;
-    const uint64_t index;
-    SequenceInterval(const std::string& s, const uint64_t st, 
-                     const uint64_t l, const uint64_t i = 1)
+    const int64_t start;
+    const int64_t length;
+    const int64_t index;
+    SequenceInterval(const std::string& s, const int64_t st, 
+                     const int64_t l, const int64_t i = 1)
         : seq(s), start(st), length(l), index(i)
     {
         if (index != 0 && index != 1) {
@@ -33,10 +33,10 @@ class SequenceInterval {
         }
     }
     ~SequenceInterval();
-    uint64_t start_bed() { return start - index; }
-    uint64_t end_bed()   { return start - index + length; }
-    uint64_t start_gff() { return start - index + 1; }
-    uint64_t end_gff()   { return start - index + length; }
+    int64_t start_bed() { return start - index; }
+    int64_t end_bed()   { return start - index + length; }
+    int64_t start_gff() { return start - index + 1; }
+    int64_t end_gff()   { return start - index + length; }
     const std::string& bed_entry()
     { 
         std::stringstream s;
@@ -46,32 +46,35 @@ class SequenceInterval {
 };
 
 
-class FastaSequence {
+class FastaSequenceStats {
   public:
     static bool           track_case = false;
     static bool           track_all_chars = false;
   public:
     const std::string     name;
     const std::string     comment;
-    const uint64_t        length;
+    const int64_t        length;
     const std::string     seq;
-    std::map<char, uint64_t>      composition;
+    std::map<char, int64_t>      composition;
     std::vector<SequenceInterval> gaps;
   public:
-    FastaSequence(std::string n, std::string c, uint64_t l, const char* s)
-        : name(n), comment(c), length(l), seq(s)
+    //FastaSequenceStats(const char* n, const char* c, int64_t l, const char* s)
+    FastaSequenceStats(const kseq_t* k)
+        : name(k->name.s), comment(k->comment.s), length(k->seq.l), seq(k->seq.s)
     {
+        if (! length)  // length-0 sequence, because the kseq lib can return it
+            return;
         if (! calc_composition(s)) {
             std::cerr << "composition could not be calculated" << std::endl;
             exit(1);
         }
     }
-    ~FastaSequence();
+    ~FastaSequenceStats();
     bool calc_composition(const char* s)
     {
         const char* const start = s;
-        uint64_t current_gap_start = 0;
-        uint64_t current_gap_length = 0;
+        int64_t current_gap_start = 0;
+        int64_t current_gap_length = 0;
         while ((char c = *s++)) {
             // position with index 1 is s - start
             if (! track_case) c = toupper(c);
@@ -109,13 +112,38 @@ class FastaSequence {
     }
 };
 
+class FastaFileStats {
+  public:
+    const std::string     filename;
+    std::vector<FastaSequenceStats> seq_stats;
+    FastaFileStats(const std::string& fn)
+        : name(fn);
+    {
+        const char* fcstr = filename.c_str();
+        gzFile fp = gzopen(fcstr, "r");
+        if (! fp) {
+            std::cerr << "could not open fasta file " << filename << std::endl;
+            exit(1);
+        }
+        kseq_t *seq = kseq_init(fp);
+        int l;  // here is one place we might start retyping kseq
+        while ((l = kseq_read(seq)) >= 0) {
+            seq_stats.push_back(FastaSequenceStats(seq));
+            printf("name: %s\n", seq->name.s);
+            if (seq->comment.l) printf("comment: %s\n", seq->comment.s);
+            printf("seq: %s\n", seq->seq.s);
+            if (seq->qual.l) printf("qual: %s\n", seq->qual.s);
+        }
+    }
+};
+
 
 int main(int argc, char *argv[])
 {
 	gzFile fp;
 	kseq_t *seq;
 	int l;
-    std::vector<FastaSequence> seqs;
+    std::vector<FastaFileStats> seqs;
 	if (argc != 2) {
 		fprintf(stderr, "Usage: %s <in.seq>\n", argv[0]);
 		return 1;
