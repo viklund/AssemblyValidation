@@ -5,18 +5,19 @@ Script that plots the coverage of a sam/bam-file.
 
 import pysam
 import numpy
+
+from bokeh.plotting import figure, output_file, save
 #from matplotlib import pyplot
 
-import matplotlib.pyplot as plt
-import mpld3
+#import matplotlib.pyplot as plt
+#import mpld3
 
 class CoveragePlot(object):
     
     def __init__(self, assembly):
         self.assembly = assembly
-        fig, ax = plt.subplots()
-        self.fig = fig
-        self.ax = ax
+        output_file("scatter.html")
+        self.p1 = figure(plot_width=700, plot_height=300)
         
     def plot(self, name, length, cov, offset):
         print "%s %s %s" % (name, length, len(cov))
@@ -33,11 +34,10 @@ class CoveragePlot(object):
 
         cov_bins = [ x/local_bin_width for x in cov_bins ]
         
-        self.ax.plot([x*local_bin_width+offset for x in range(len(cov_bins))], cov_bins)
-        #mpld3.save_html(self.fig, "%s.html" % name)
+        self.p1.line(range(offset/local_bin_width,offset/local_bin_width+len(cov_bins)), cov_bins, size=12, color="red", alpha=0.5)
 
     def save(self):
-        mpld3.save_html(self.fig, "snubbe.html")
+        save(self.p1)
     
     def run(self):
         ext = self.assembly.split('.')[-1]
