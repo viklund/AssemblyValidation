@@ -7,6 +7,7 @@ __pycache__/
 *.o
 *.a
 a.out
+*.dSYM
 
 # fasta_stats
 fasta_stats

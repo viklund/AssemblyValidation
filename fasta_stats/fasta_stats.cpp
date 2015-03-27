@@ -6,6 +6,7 @@ extern "C" {
 #include "kseq.h"
 }
 
+
 #include <vector>
 #include <map>
 #include <cstdio>
@@ -17,8 +18,6 @@ extern "C" {
 #include <fstream>
 #include <algorithm>
 
-KSEQ_INIT(gzFile, gzread)
-
 
 // Class to hold sequence intervals, we use it for gaps.  Intervals have a
 // sequence name, a start, a length, and an index that is the base (0 or 1)
@@ -29,11 +28,13 @@ KSEQ_INIT(gzFile, gzread)
 class SequenceInterval {
   public:
     std::string seq;
-    int64_t start;
-    int64_t length;
-    int64_t index;
-    SequenceInterval(const std::string& s, const int64_t st,
-                     const int64_t l, const int64_t i = 1)
+    uint64_t start;
+    uint64_t length;
+  private:
+    uint64_t index;
+  public:
+    SequenceInterval(const std::string& s, const uint64_t st,
+                     const uint64_t l, const uint64_t i = 1)
         : seq(s), start(st), length(l), index(i)
     {
         if (index != 0 && index != 1) {
@@ -41,10 +42,10 @@ class SequenceInterval {
             exit(1);
         }
     }
-    int64_t start_bed() const { return start - index; }
-    int64_t end_bed()   const { return start - index + length; }
-    int64_t start_gff() const { return start - index + 1; }
-    int64_t end_gff()   const { return start - index + length; }
+    uint64_t start_bed() const { return start - index; }
+    uint64_t end_bed()   const { return start - index + length; }
+    uint64_t start_gff() const { return start - index + 1; }
+    uint64_t end_gff()   const { return start - index + length; }
     const std::string bed_record() const
     {
         std::stringstream s;
@@ -55,21 +56,18 @@ class SequenceInterval {
 
 class SizeStats {
   public:
-    int64_t num;
-    int64_t total_length;
-    int64_t min_size;
-    int64_t num_min_size;
-    int64_t max_size;
-    double  mean_size;
-    double  median_size;
-    SizeStats();
-    SizeStats(std::vector<int64_t>& g)
+    uint64_t num;
+    uint64_t total_length;
+    uint64_t min_size;
+    uint64_t num_min_size;
+    uint64_t max_size;
+    double   mean_size;
+    double   median_size;
+    SizeStats() { }
+    SizeStats(std::vector<uint64_t>& g) { fill(g); }
+    void fill(std::vector<uint64_t>& g)
     {
-        fill(g);
-    }
-    void fill(std::vector<int64_t>& g)
-    {
-        num = int64_t(g.size());
+        num = uint64_t(g.size());
         if (! num)
             return;
         size_t i;
@@ -79,7 +77,7 @@ class SizeStats {
         std::sort(g.begin(), g.end());
         min_size = g.front();
         for (i = 1; i < num && g[i] == min_size; ++i);
-        num_min_size = int64_t(i);
+        num_min_size = uint64_t(i);
         max_size = g.back();
         mean_size = double(total_length) / double(num);
         if ((num % 2) == 0)
@@ -89,7 +87,7 @@ class SizeStats {
     }
 };
 
-typedef std::map<char, int64_t>        char_count_map;
+typedef std::map<char, uint64_t>        char_count_map;
 typedef char_count_map::iterator       char_count_map_I;
 typedef char_count_map::const_iterator char_count_map_cI;
 
@@ -97,8 +95,8 @@ class SequenceStats {
   public:
     std::string         name;
     std::string         comment;
-    int64_t             num;
-    int64_t             length;
+    uint64_t             num;
+    uint64_t             length;
     char_count_map      composition;
     SizeStats           sequences;
     SizeStats           gaps;
@@ -114,7 +112,7 @@ class FastaSequenceStats {
     SequenceStats                 stats;
 
     // N-gap sizes
-    std::vector<int64_t>  g;
+    std::vector<uint64_t>  g;
 
     // full N-gap descriptions
     std::vector<SequenceInterval> _gaps;
@@ -122,7 +120,7 @@ class FastaSequenceStats {
     // const because we don't want anyone to change these values yet
     static const bool           track_case = false;
     static const bool           track_all_chars = false;
-    static const int64_t        min_gap_length = 1;
+    static const uint64_t       min_gap_length = 1;
 
   public:
 
@@ -144,8 +142,8 @@ class FastaSequenceStats {
     void calc_composition(const char* s)
     {
         const char* const start = s;
-        int64_t current_gap_start = 0;
-        int64_t current_gap_length = 0;
+        uint64_t current_gap_start = 0;
+        uint64_t current_gap_length = 0;
         unsigned char c;
         while ((c = *s++)) {
             // position with index 1 is s - start
@@ -175,7 +173,7 @@ class FastaSequenceStats {
                     break;
             }
         }
-        if (s - start != stats.length) {
+        if (uint64_t(s - start) != stats.length) {
             std::cerr << stats.name << ": inconsistency between stated length " <<
                 stats.length << " and calculated length " << s - start << std::endl;
             exit(1);
@@ -205,7 +203,7 @@ class FastaSequenceStats {
 
 class FastaFileStats {
   public:
-    const std::string               filename;
+    std::string                     filename;
 
     // one entry for each sequence
     std::vector<FastaSequenceStats> seqs;
@@ -216,9 +214,11 @@ class FastaFileStats {
 
     // -------- c-tor, d-tor
     //
-    FastaFileStats(const char* fn)
-        : filename(fn)
+    FastaFileStats() { }
+
+    void run(const char* fn)
     {
+        filename.assign(fn);
         gzFile fp = gzopen(fn, "r");
         if (! fp) {
             std::cerr << "could not open fasta file " << filename << std::endl;
@@ -233,7 +233,8 @@ class FastaFileStats {
             printf("seq: %s\n", seq->seq.s);
             if (seq->qual.l) printf("qual: %s\n", seq->qual.s);
 
-            seqs.push_back(FastaSequenceStats(seq));
+            FastaSequenceStats s(seq);
+            seqs.push_back(s);
 
         }
         kseq_destroy(seq);
@@ -242,10 +243,10 @@ class FastaFileStats {
         // done reading file and calculating sequence-specific stats
         // now calculate summary stats for the whole genome
         stats.name.assign(fn);
-        stats.num = int64_t(seqs.size());
+        stats.num = uint64_t(seqs.size());
         stats.length = 0;
-        std::vector<int64_t>  s(seqs.size());  // for sequences
-        std::vector<int64_t>  g;  // for gaps
+        std::vector<uint64_t>  s(seqs.size());  // for sequences
+        std::vector<uint64_t>  g;  // for gaps
         for (size_t i = 0; i < seqs.size(); ++i) {
             // add sequence length to s
             s[i] = seqs[i].stats.length;
@@ -322,7 +323,9 @@ int main(int argc, char *argv[])
 
     // This reads the Fasta file in argv[1] and calculates stats for
     // all sequences.
-    FastaFileStats fastastats(argv[1]);
+    FastaFileStats fastastats;
+
+    fastastats.run(argv[1]);
 
     // Produce a BED file describing all gaps
     fastastats.create_gaps_bed("gaps.bed");
