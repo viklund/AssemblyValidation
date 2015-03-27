@@ -1,10 +1,10 @@
 # Makefile for chrom-gc
 
-CPP  = g++
+CXX  = g++
 CC   = g++
 
 CXXINCLUDEDIR = 
-CXXFLAGS = $(CXXINCLUDEDIR) -D_FILE_OFFSET_BITS=64 -Wall -ggdb -g3 -fno-inline-small-functions -O0 -fno-inline -fno-eliminate-unused-debug-types
+CXXFLAGS = $(CXXINCLUDEDIR) -D_FILE_OFFSET_BITS=64 -Wall -ggdb -g3 -O0 -fno-inline -fno-eliminate-unused-debug-types
 LIBS = -lz
 RM = rm -f
 
@@ -18,7 +18,7 @@ all: $(BIN)
 
 
 $(BIN): $(OBJ)
-	$(CPP) $(CXXFLAGS) $(OBJ) -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(OBJ) -o $@ $(LIBS)
 
 $(OBJ): $(HEADER)
 
