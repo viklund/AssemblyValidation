@@ -26,6 +26,7 @@ setup(name = "gaqtk",
       package_data = {
         'gaqtk' : [
             'static/*',
+            'templates/*',
             ],
         },
   )

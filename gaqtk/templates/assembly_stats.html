@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>{{ title if title else "Bokeh Plot" }}</title>
+        {{ plot_resources|indent(8) }}
+
+        {{ p1['script']|indent(8) }}
+
+        {{ p2['script']|indent(8) }}
+    </head>
+    <body>
+
+      {{ p1['div']|indent(8) }}
+
+<p>A new paragraph</p>
+
+        {{ p2['div']|indent(8) }}
+    </body>
+</html>
