@@ -6,7 +6,9 @@ Script that plots the coverage of a sam/bam-file.
 import pysam
 import numpy
 
-from bokeh.plotting import figure, output_file, save
+from bokeh.plotting import figure, output_file, save, ColumnDataSource
+from bokeh.models import HoverTool
+
 
 
 class CoveragePlot(object):
@@ -14,7 +16,8 @@ class CoveragePlot(object):
     def __init__(self, assembly):
         self.assembly = assembly
         output_file("scatter.html")
-        self.p1 = figure(plot_width=700, plot_height=300)
+        TOOLS="pan,wheel_zoom,box_zoom,reset,hover"
+        self.p1 = figure(plot_width=700, plot_height=300, tools=TOOLS)
         self.sections = []
         
     def plot(self, name, length, cov, offset):
@@ -30,6 +33,7 @@ class CoveragePlot(object):
             "min":  [float('Inf')] * nbins,
             "max":  [0.0] * nbins,
             "mean": [0.0] * nbins,
+            "name": name,
         }
         for i, x in enumerate(cov):
             bini = i / local_bin_width
@@ -49,14 +53,39 @@ class CoveragePlot(object):
 
     def save(self):
         mx = max( [ max(x['max']) for x in self.sections ] )
-        colors = ['#D8A031', '#D37600', '#C16A00', '#A84600']
-        for i, cov_bins in enumerate(self.sections):
-            x_vals = cov_bins['x_vals']
-            self.p1.rect(x_vals[0] + cov_bins['length']/2, 0+mx/2, cov_bins['length'], mx, color=colors[i%4], alpha=1)
+        colors = ['#E6E6E6', '#A3A3A3']
 
-            self.p1.line(x_vals, cov_bins['min'], size=12, color="green", alpha=1)
-            self.p1.line(x_vals, cov_bins['max'], size=12, color="red", alpha=1)
-            self.p1.line(x_vals, cov_bins['mean'], size=12, color="blue", alpha=1)
+        xs = []
+        ys = []
+        widths = []
+        heights = []
+        names = []
+
+        for i, cov_bins in enumerate(self.sections):
+            ds = ColumnDataSource(data=cov_bins)
+
+            x_vals = cov_bins['x_vals']
+            xs.append(x_vals[0] + cov_bins['length']/2)
+            ys.append(0+mx/2)
+            widths.append(cov_bins['length'])
+            heights.append(mx*10)
+            names.append(cov_bins['name'])
+            colors.append(colors[i % len(colors)])
+
+            self.p1.line('x_vals', 'min', source=ds, size=12, color="green", alpha=1)
+            self.p1.line('x_vals', 'max', source=ds, size=12, color="red", alpha=1)
+            self.p1.line('x_vals', 'mean', source=ds, size=12, color="blue", alpha=1)
+
+        ds2 = ColumnDataSource(data={
+            "x": xs,
+            "y": ys,
+            "width": widths,
+            "height": heights,
+            "name": names,
+        })
+        self.p1.rect('x','y','width','height', source=ds2, color=colors, alpha=0.3)
+        hover = self.p1.select(dict(type=HoverTool))
+        hover.tooltips = [("Name", "@name")]
 
         save(self.p1)
     
