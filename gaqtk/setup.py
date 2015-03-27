@@ -13,6 +13,7 @@ setup(name = "gaqtk",
       install_requires = [
           "pyyaml",
           "mpld3",
+          "bokeh",
           "jinja2",
           "matplotlib",
           "nose",

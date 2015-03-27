@@ -1,7 +1,6 @@
 # gaqtk #
 
-
-Temporary module name Genome Assembly Quality Toolkit (gaktk) - a
+Temporary module name Genome Assembly Quality Toolkit (gaqtk) - a
 toolkit for generating interactive quality plots for genomic data.
 
 ## Aim ##
@@ -23,10 +22,6 @@ The author of mpld3 has written some interesting blogposts on the
 motivation behind the development of mpld3, and the future of python
 visualiation on the web.
 
-http://jakevdp.github.io/blog/2014/01/10/d3-plugins-truly-interactive/
+- http://jakevdp.github.io/blog/2014/01/10/d3-plugins-truly-interactive/
 
-http://jakevdp.github.io/blog/2013/03/23/matplotlib-and-the-future-of-visualization-in-python/
-
-
-
-
+- http://jakevdp.github.io/blog/2013/03/23/matplotlib-and-the-future-of-visualization-in-python/
