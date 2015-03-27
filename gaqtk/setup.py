@@ -12,7 +12,9 @@ setup(name = "gaqtk",
       scripts = glob.glob('scripts/*.py'),
       install_requires = [
           "pyyaml",
-          ## Required for testing
+          "mpld3",
+          "jinja2",
+          "matplotlib",
           "nose",
       ],
       test_suite = 'nose.collector',
@@ -20,7 +22,11 @@ setup(name = "gaqtk",
       namespace_packages = [
           'gaqtk',
       ],
-      package_data = {},
+      package_data = {
+        'gaqtk' : [
+            'static/*',
+            ],
+        },
   )
 
 os.system("git rev-parse --short --verify HEAD > ~/.viz_version")
