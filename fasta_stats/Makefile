@@ -1,7 +1,7 @@
 # Makefile for chrom-gc
 
-CXX  = clang
-CC   = clang
+CXX  = llvm-g++ # g++
+CC   = llvm-g++ # g++
 
 CXXINCLUDEDIR = 
 CXXFLAGS = $(CXXINCLUDEDIR) -D_FILE_OFFSET_BITS=64 -Wall -ggdb -g3 -O0 -fno-inline -fno-eliminate-unused-debug-types

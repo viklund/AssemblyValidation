@@ -159,7 +159,7 @@ static inline void kseq_destroy(kseq_t *ks)
    -1   end-of-file
    -2   truncated quality string
  */
-static int kseq_read(kseq_t *seq)
+static int64_t kseq_read(kseq_t *seq)
 {
     int c;
     kstream_t *ks = seq->f;

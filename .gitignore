@@ -10,7 +10,10 @@ a.out
 *.dSYM
 
 # fasta_stats
-fasta_stats
+fasta_stats/fasta_stats
+fasta_stats/test*
+fasta_stats/*.fa
+fasta_stats/*.bed
 
 # Distribution / packaging
 .Python
