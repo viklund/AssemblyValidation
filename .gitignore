@@ -14,6 +14,7 @@ fasta_stats/fasta_stats
 fasta_stats/test*
 fasta_stats/*.fa
 fasta_stats/*.bed
+fasta_stats/sequences.txt
 
 # Distribution / packaging
 .Python
