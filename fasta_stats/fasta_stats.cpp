@@ -1,6 +1,8 @@
 // TODO: add CpG islands... make a transition matrix?
-// DONE: get working! :-)
 // TODO: make sure can const the returned stats, must use .at() instead of []
+// TODO: error if not a Fasta sequence
+// TODO: adjust default output filenames
+// DONE: get working! :-)
 
 extern "C" {
 #include <zlib.h>
@@ -26,14 +28,31 @@ const std::string comma = ",";
 #define DEBUG 0
 static int         opt_debug = DEBUG;
 
-static std::string opt_query = "";  // restrict output to only this sequence
+static std::string opt_query;  // restrict output to only this sequence
 static bool        opt_total = true;  // produce totals output
 static bool        opt_sequences = true;  // produce individual sequence output
 static bool        opt_header = true;  // add header to table output
 static std::string opt_sep = comma;  // table column separator
 static std::string opt_output;  // output file
-static bool        opt_stdio = false;
-static std::string opt_gaps_bed = "gaps.bed";  // gaps BED file
+static bool        opt_stdin = false;
+static bool        from_stdin = false;
+static std::string opt_gaps_bed;  // gaps BED file
+static bool        opt_create_gaps_bed = true;
+
+
+// Remove path from filename
+std::string localBasename(const std::string& pathname, bool remove_extension = false) {
+    size_t slash = pathname.find_last_of('/');
+    std::string filename(pathname);
+    if (slash < pathname.length())  // found '/'
+        filename = pathname.substr(slash + 1);
+    if (remove_extension) {
+        size_t dot = filename.find_last_of('.');
+        if (slash < filename.length() && slash > 0)  // found '.' not at start
+            filename = filename.substr(0, dot);
+    }
+    return filename;
+}
 
 
 // Class to hold sequence intervals, we use it for gaps.  Intervals have a
@@ -71,55 +90,55 @@ class SequenceInterval {
     }
 };
 
-class SizeStats {
+class LenStats {
   public:
     uint64_t num;
-    uint64_t total_length;
-    uint64_t min_size;
-    uint64_t num_min_size;
-    uint64_t max_size;
-    double   mean_size;
-    double   median_size;
-    SizeStats()
-        : num(0), total_length(0), min_size(0), num_min_size(0),
-          max_size(0), mean_size(0.0), median_size(0.0)
+    uint64_t total_len;
+    uint64_t min_len;
+    uint64_t num_min_len;
+    uint64_t max_len;
+    double   mean_len;
+    double   median_len;
+    LenStats()
+        : num(0), total_len(0), min_len(0), num_min_len(0),
+          max_len(0), mean_len(0.0), median_len(0.0)
     { }
-    SizeStats(std::vector<uint64_t>& g) { fill(g); }
-    SizeStats(uint64_t l) { fill(l); }
+    LenStats(std::vector<uint64_t>& g) { fill(g); }
+    LenStats(uint64_t l) { fill(l); }
     void fill(std::vector<uint64_t>& g)
     {
         num = uint64_t(g.size());
         if (! num)
             return;
         size_t i;
-        total_length = 0;
+        total_len = 0;
         for (i = 0; i < num; ++i)
-            total_length += g[i];
+            total_len += g[i];
         std::sort(g.begin(), g.end());
-        min_size = g.front();
-        for (i = 1; i < num && g[i] == min_size; ++i);
-        num_min_size = uint64_t(i);
-        max_size = g.back();
-        mean_size = double(total_length) / double(num);
+        min_len = g.front();
+        for (i = 1; i < num && g[i] == min_len; ++i);
+        num_min_len = uint64_t(i);
+        max_len = g.back();
+        mean_len = double(total_len) / double(num);
         if ((num % 2) == 0)
-            median_size = (g[num / 2] + g[(num / 2) - 1]) / 2.0;
+            median_len = (g[num / 2] + g[(num / 2) - 1]) / 2.0;
         else
-            median_size = g[num / 2];
+            median_len = g[num / 2];
     }
     void fill(uint64_t l)
     {
-        num = num_min_size = 1;
-        total_length = min_size = max_size = mean_size = median_size = l;
+        num = num_min_len = 1;
+        total_len = min_len = max_len = mean_len = median_len = l;
     }
     void dump(std::ostream& os = std::cout) const
     {
-        os << "SizeStats: num " << num;
-        os << "  total_length " << total_length;
-        os << "  min_size " << min_size;
-        os << "  num_min_size " << num_min_size;
-        os << "  max_size " << max_size;
-        os << "  mean_size " << mean_size;
-        os << "  median_size " << median_size;
+        os << "LenStats: num " << num;
+        os << "  total_len " << total_len;
+        os << "  min_len " << min_len;
+        os << "  num_min_len " << num_min_len;
+        os << "  max_len " << max_len;
+        os << "  mean_len " << mean_len;
+        os << "  median_len " << median_len;
         os << std::endl;
     }
 };
@@ -153,10 +172,12 @@ class SequenceStats {
     uint64_t            length;
     unsigned long       file_index;
     char_count_map      composition;
-    SizeStats           sequences;
-    SizeStats           gaps;
+    uint64_t            CpG;
+    LenStats            sequences;
+    LenStats            gaps;
   public:
     SequenceStats() {
+        CpG = 0;
         char_count_map_CTOR(composition);
     }
   public:
@@ -174,25 +195,27 @@ class SequenceStats {
         std::stringstream s;
         s << "name";
         s << sep << "num";
-        s << sep << "length";
+        s << sep << "len";
         s << sep << "A";
         s << sep << "C";
         s << sep << "G";
         s << sep << "T";
         s << sep << "N";
-        s << sep << "other";
+        s << sep << "O";
         s << sep << "GC";
         s << sep << "CpG";
         s << sep << "num";
-        s << sep << "total_length";
-        s << sep << "max_size";
-        s << sep << "mean_size";
-        s << sep << "median_size";
-        s << sep << "gaps_num";
-        s << sep << "gaps_total_length";
-        s << sep << "gaps_max_size";
-        s << sep << "gaps_mean_size";
-        s << sep << "gaps_median_size";
+        s << sep << "totlen";
+        s << sep << "minlen";
+        s << sep << "maxlen";
+        s << sep << "meanlen";
+        s << sep << "medlen";
+        s << sep << "gnum";
+        s << sep << "gaptotlen";
+        s << sep << "gapminlen";
+        s << sep << "gapmaxlen";
+        s << sep << "gapmeanlen";
+        s << sep << "gapmedlen";
         return s.str();
     }
     std::string table_line(const std::string sep = opt_sep) {
@@ -207,17 +230,19 @@ class SequenceStats {
         s << sep << composition['N'];
         s << sep << composition['*'];
         s << sep << double(composition['C'] + composition['G']) / double(length);
-        s << sep << "CpG";
+        s << sep << CpG;
         s << sep << sequences.num;
-        s << sep << sequences.total_length;
-        s << sep << sequences.max_size;
-        s << sep << sequences.mean_size;
-        s << sep << sequences.median_size;
+        s << sep << sequences.total_len;
+        s << sep << sequences.min_len;
+        s << sep << sequences.max_len;
+        s << sep << sequences.mean_len;
+        s << sep << sequences.median_len;
         s << sep << gaps.num;
-        s << sep << gaps.total_length;
-        s << sep << gaps.max_size;
-        s << sep << gaps.mean_size;
-        s << sep << gaps.median_size;
+        s << sep << gaps.total_len;
+        s << sep << gaps.min_len;
+        s << sep << gaps.max_len;
+        s << sep << gaps.mean_len;
+        s << sep << gaps.median_len;
         return s.str();
     }
 };
@@ -240,7 +265,7 @@ class FastaSequenceStats {
     // const because we don't want anyone to change these values yet
     static const bool           track_case = false;
     static const bool           track_all_chars = false;
-    static const uint64_t       min_gap_length = 1;
+    static const uint64_t       min_gap_len = 1;
 
   public:
 
@@ -264,8 +289,9 @@ class FastaSequenceStats {
     void calc_composition(const char* s) {
         const char* const start = s;
         uint64_t current_gap_start = 0;
-        uint64_t current_gap_length = 0;
+        uint64_t current_gap_len = 0;
         unsigned char c;
+        int CpG_state = 0; // 1: if C was just seen 0: otherwise
         while ((c = *s++)) {
             // position with index 0 is s - start - 1
             if (! track_case) c = toupper(c);
@@ -273,24 +299,38 @@ class FastaSequenceStats {
                 stats.composition[c]++;
                 if (! current_gap_start) {
                     current_gap_start = s - start;
-                    current_gap_length = 1;
-                } else ++current_gap_length;
+                    current_gap_len = 1;
+                } else ++current_gap_len;
+                CpG_state = 0;
                 continue;
             } else if (current_gap_start) {
-                if (current_gap_length >= min_gap_length)
+                if (current_gap_len >= min_gap_len)
                     _gaps.push_back(SequenceInterval(stats.name,
                                                      current_gap_start,
-                                                     current_gap_length));
+                                                     current_gap_len));
                 current_gap_start = 0;
-                current_gap_length = 0;
+                current_gap_len = 0;
             }
             switch(c) {
-                case 'A': case 'C': case 'G': case 'T':
-                case 'a': case 'c': case 'g': case 't':
+                case 'A': case 'a':
+                case 'T': case 't':
                     stats.composition[c]++;
+                    CpG_state = 0;
+                    break;
+                case 'C': case 'c':
+                    stats.composition[c]++;
+                    CpG_state = 1;
+                    break;
+                case 'G': case 'g':
+                    stats.composition[c]++;
+                    if (CpG_state == 1) {
+                        stats.CpG += 2; // forward and reverse
+                        CpG_state = 0;
+                    }
                     break;
                 default:
                     stats.composition[track_all_chars ? c : '*']++;
+                    CpG_state = 0;
                     break;
             }
         }
@@ -299,10 +339,10 @@ class FastaSequenceStats {
                 stats.length << " and calculated length " << s - start - 1 << std::endl;
             exit(1);
         }
-        if (current_gap_start && current_gap_length >= min_gap_length)
+        if (current_gap_start && current_gap_len >= min_gap_len)
             _gaps.push_back(SequenceInterval(stats.name,
                                              current_gap_start,
-                                             current_gap_length));
+                                             current_gap_len));
 
         // Done reading the sequence for its composition.
         // Summarise gaps: fill size vector g and call stats.gaps.fill()
@@ -418,6 +458,7 @@ class FastaFileStats {
         stats.name.assign(fn);
         stats.num = uint64_t(seqs.size());
         stats.length = 0;
+        stats.CpG = 0;
         std::vector<uint64_t>  s(seqs.size());  // for sequences
         std::vector<uint64_t>  g;  // for gaps
         for (size_t i = 0; i < seqs.size(); ++i) {
@@ -430,7 +471,7 @@ class FastaFileStats {
                  ++it) {
                 stats.composition[it->first] += it->second;
             }
-            //
+            stats.CpG += seqs[i].stats.CpG;
         }
         // do we want e.g., N50 when we generate stats for sequences?
         stats.sequences.fill(s);
@@ -498,7 +539,7 @@ class FastaFileStats {
         // header
         os << "track name=\"gaps_" << nm << "\" ";
         os << "description=\"N-gaps (minimum length " <<
-            FastaSequenceStats::min_gap_length << ") for " <<
+            FastaSequenceStats::min_gap_len << ") for " <<
             (query.empty() ? "filename " : "sequence ") <<
             nm << "\"";
         os << std::endl;
@@ -512,7 +553,7 @@ class FastaFileStats {
 
 int main(int argc, char *argv[]) {
     enum { OPT_output,
-           OPT_stdio,
+           OPT_stdin,
            OPT_query,
            OPT_gaps_bed,   OPT_no_gaps_bed,
            OPT_tab,        OPT_comma, 
@@ -527,7 +568,8 @@ int main(int argc, char *argv[]) {
         { OPT_query,         "-q",                SO_REQ_SEP },
         { OPT_output,        "--output",          SO_REQ_SEP },
         { OPT_output,        "-o",                SO_REQ_SEP },
-        { OPT_stdio,         "-",                 SO_NONE },
+        { OPT_stdin,         "-",                 SO_NONE },
+        { OPT_stdin,         "--stdin",           SO_NONE },
         { OPT_gaps_bed,      "--gaps-bed",        SO_REQ_SEP },
         { OPT_gaps_bed,      "-g",                SO_REQ_SEP },
         { OPT_no_gaps_bed,   "--no-gaps-bed",     SO_NONE },
@@ -569,12 +611,13 @@ int main(int argc, char *argv[]) {
             opt_query = args.OptionArg();
         } else if (args.OptionId() == OPT_output) {
             opt_output = args.OptionArg();
-        } else if (args.OptionId() == OPT_stdio) {
-            opt_stdio = true;
+        } else if (args.OptionId() == OPT_stdin) {
+            opt_stdin = true;
         } else if (args.OptionId() == OPT_gaps_bed) {
             opt_gaps_bed = args.OptionArg();
+            opt_create_gaps_bed = true;
         } else if (args.OptionId() == OPT_no_gaps_bed) {
-            opt_gaps_bed.clear();
+            opt_create_gaps_bed = false;
         } else if (args.OptionId() == OPT_header) {
             opt_header = true;
         } else if (args.OptionId() == OPT_no_header) {
@@ -600,28 +643,42 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
     }
-    if (args.FileCount() != 1) {
+
+    // Input and output files
+    std::string input;
+    if (args.FileCount() > 1) {
         std::cerr << "at most one sequence file as input" << std::endl;
+        exit(1);
+    } else if (args.FileCount() == 1) {
+        input.assign(args.File(0));
+    } else if (opt_stdin) {
+        input = "/dev/stdin";
+        from_stdin = true;
+    } else {
+        std::cerr << "at least one sequence file as input, or stdin with -/--stdin" << std::endl;
         exit(1);
     }
     if (opt_output.empty()) {
-        if (opt_stdio)
+        if (opt_stdin) {
             opt_output = "/dev/stdout";
-        else {
-            std::cerr << "must provide output file or --stdio for stdout" << std::endl;
-            exit(1);
+        } else {
+            // assemble filename from input filename
+            opt_output = localBasename(input, false) + ".stats.txt";
         }
     }
+    if (opt_create_gaps_bed && opt_gaps_bed.empty())
+        opt_gaps_bed = opt_stdin ? "gaps.bed" : localBasename(input, false) + ".gaps.bed";
+    if (opt_debug)
+        std::cerr << "input:" << input << ":   output:" << opt_output << 
+            ":  gaps.bed:" << opt_gaps_bed << ":" << std::endl;
     std::ofstream output(opt_output.c_str(), std::ofstream::out);
+    FastaFileStats fastastats(input.c_str());
 
-    FastaFileStats fastastats(args.File(0));
-
+    // produce output
     if (opt_debug > 1)
         fastastats.dump(std::cerr);
-
     if (opt_header)
         output << SequenceStats::table_header(opt_sep) << std::endl;
-
     if (! opt_query.empty()) {
         SequenceStats& s = fastastats.stats_for_sequence(opt_query);
         output << s.table_line(opt_sep) << std::endl;
@@ -629,14 +686,11 @@ int main(int argc, char *argv[]) {
             fastastats.create_gaps_bed(opt_gaps_bed, opt_query);
         return 0;
     }
-
     if (opt_total)
         output << fastastats.stats.table_line(opt_sep) << std::endl;
-
     if (opt_sequences)
         fastastats.create_sequence_table(output, opt_sep);
-
-    if (! opt_gaps_bed.empty())
+    if (opt_create_gaps_bed)
         fastastats.create_gaps_bed(opt_gaps_bed);
 
 	return 0;
