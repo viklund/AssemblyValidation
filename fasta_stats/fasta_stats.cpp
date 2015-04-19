@@ -30,12 +30,12 @@ const std::string comma = ",";
 #define DEBUG 0
 static int         opt_debug = DEBUG;
 
-static std::string opt_query;  // restrict output to only this sequence
-static bool        opt_total = true;  // produce totals output
-static bool        opt_sequences = true;  // produce individual sequence output
-static bool        opt_header = true;  // add header to table output
-static std::string opt_sep = comma;  // table column separator
-static std::string opt_assembly;  // assembly stats file
+static std::string opt_query;                 // restrict output to only this sequence
+static bool        opt_summary = true;        // produce summary table for all sequences
+static bool        opt_sequences = true;      // produce output for each sequence
+static bool        opt_header = true;         // add headers to tables output
+static std::string opt_sep = comma;           // table column separator
+static std::string opt_assembly;              // summary assembly stats file
 const static std::string assembly_default_file = "assembly.txt";
 const static std::string assembly_default_suffix = ".assembly.txt";
 static std::string opt_output;  // output file
@@ -414,9 +414,9 @@ class FastaFileStats {
     static const uint64_t short_len = 500;
     uint64_t              num_short_len, max_len;
     double                mean_len, median_len;
-    SequenceComposition   total_composition;
+    SequenceComposition   summary_composition;
     double                GC;
-    GapComposition        total_gaps;
+    GapComposition        summary_gaps;
 
     QuantStats_t     N_stats,  L_stats;   // based on total_len
     QuantStats_t     NG_stats, LG_stats;  // based on genome_size
@@ -510,22 +510,22 @@ class FastaFileStats {
     }
     void gaps_fill() {
         for (size_t i = 0; i < seqs.size(); ++i) {
-            total_gaps.g.insert(total_gaps.g.end(), seqs[i].gaps.g.begin(),
-                                                    seqs[i].gaps.g.end());
+            summary_gaps.g.insert(summary_gaps.g.end(), seqs[i].gaps.g.begin(),
+                                                        seqs[i].gaps.g.end());
         }
-        total_gaps.calc_stats();
+        summary_gaps.calc_stats();
     }
     void composition_fill() {
         for (size_t i = 0; i < seqs.size(); ++i) {
             for (SequenceComposition::comp_cI it = seqs[i].composition.m.begin();
                  it != seqs[i].composition.m.end();
                  ++it) {
-                total_composition.m[it->first] += it->second;
+                summary_composition.m[it->first] += it->second;
             }
-            total_composition.CpG += seqs[i].composition.CpG;
+            summary_composition.CpG += seqs[i].composition.CpG;
         }
         // subtract N-gaps from total length
-        GC = total_composition.calc_GC(total_len - total_gaps.total_len);
+        GC = summary_composition.calc_GC(total_len - summary_gaps.total_len);
     }
     void dump(std::ostream& os = std::cout) const
     {
@@ -541,7 +541,7 @@ class FastaFileStats {
         os << "  median_len " << median_len;
         os << std::endl;
         os << "FastaFileStats: ";
-        total_gaps.dump(os, false);
+        summary_gaps.dump(os, false);
         os << "FastaFileStats: N/L";
         for (size_t qi = 0; qi < _quantiles.size(); ++qi) {
             double q = _quantiles[qi];
@@ -639,22 +639,22 @@ class FastaFileStats {
         ans.max_len = max_len;
         ans.mean_len = mean_len;
         ans.median_len = median_len;
-        ans.A = total_composition.m['A'];
-        ans.C = total_composition.m['C'];
-        ans.G = total_composition.m['G'];
-        ans.T = total_composition.m['T'];
-        ans.N = total_composition.m['N'];
-        ans.O = total_composition.m['*'];
-        ans.CpG = total_composition.CpG;
-        ans.GC = total_composition.calc_GC(total_len - total_gaps.total_len);
-        ans.GC_with_N = total_composition.calc_GC(total_len);
-        ans.gap_num = total_gaps.num;
-        ans.gap_total_len = total_gaps.total_len;
-        ans.gap_min_len = total_gaps.min_len;
-        ans.gap_num_min_len = total_gaps.num_min_len;
-        ans.gap_max_len = total_gaps.max_len;
-        ans.gap_mean_len = total_gaps.mean_len;
-        ans.gap_median_len = total_gaps.median_len;
+        ans.A = summary_composition.m['A'];
+        ans.C = summary_composition.m['C'];
+        ans.G = summary_composition.m['G'];
+        ans.T = summary_composition.m['T'];
+        ans.N = summary_composition.m['N'];
+        ans.O = summary_composition.m['*'];
+        ans.CpG = summary_composition.CpG;
+        ans.GC = summary_composition.calc_GC(total_len - summary_gaps.total_len);
+        ans.GC_with_N = summary_composition.calc_GC(total_len);
+        ans.gap_num = summary_gaps.num;
+        ans.gap_total_len = summary_gaps.total_len;
+        ans.gap_min_len = summary_gaps.min_len;
+        ans.gap_num_min_len = summary_gaps.num_min_len;
+        ans.gap_max_len = summary_gaps.max_len;
+        ans.gap_mean_len = summary_gaps.mean_len;
+        ans.gap_median_len = summary_gaps.median_len;
         ans.Nq = N_stats;
         ans.Lq = L_stats;
         ans.NGq = NG_stats;
@@ -717,27 +717,27 @@ class FastaFileStats {
         s << sep << max_len;
         s << sep << mean_len;
         s << sep << median_len;
-        s << sep << total_composition.m['A'];
-        s << sep << total_composition.m['C'];
-        s << sep << total_composition.m['G'];
-        s << sep << total_composition.m['T'];
-        s << sep << total_composition.m['N'];
-        s << sep << total_composition.m['*'];
+        s << sep << summary_composition.m['A'];
+        s << sep << summary_composition.m['C'];
+        s << sep << summary_composition.m['G'];
+        s << sep << summary_composition.m['T'];
+        s << sep << summary_composition.m['N'];
+        s << sep << summary_composition.m['*'];
         s << sep << GC;
-        s << sep << total_composition.calc_GC(total_len);
-        s << sep << total_composition.CpG;
-        s << sep << total_gaps.num;
-        s << sep << total_gaps.total_len;
-        s << sep << total_gaps.min_len;
-        s << sep << total_gaps.max_len;
-        s << sep << total_gaps.mean_len;
-        s << sep << total_gaps.median_len;
+        s << sep << summary_composition.calc_GC(total_len);
+        s << sep << summary_composition.CpG;
+        s << sep << summary_gaps.num;
+        s << sep << summary_gaps.total_len;
+        s << sep << summary_gaps.min_len;
+        s << sep << summary_gaps.max_len;
+        s << sep << summary_gaps.mean_len;
+        s << sep << summary_gaps.median_len;
         return s.str();
     }
 
-    void create_total_table(std::ostream& os = std::cout,
-                            const std::string sep = opt_sep,
-                            bool header = true) {
+    void create_summary_table(std::ostream& os = std::cout,
+                              const std::string sep = opt_sep,
+                              bool header = true) {
         if (header)
             os << table_header(sep) << std::endl;
         os << table_line(sep) << std::endl;
@@ -794,28 +794,33 @@ void usage (int arg = 0)
 "" << std::endl <<
 "OPTIONS:" << std::endl <<
 "" << std::endl <<
-"    -q/--query NAME     produce stats for sequence NAME" << std::endl <<
-"    -o/--output FILE    write stats output to FILE" << std::endl <<
-"    -/--stdin           expect input on STDIN, write output to STDOUT" << std::endl <<
+"    -q/--query NAME     Produce stats for sequence NAME.  Default is to produce" << std::endl <<
+"                        stats for all sequences." << std::endl <<
+"    -/--stdin           Expect input on STDIN, write output to STDOUT" << std::endl <<
 "                        and gaps to '" << gaps_bed_default_file << "' unless --output and/or" << std::endl <<
 "                        --gaps-bed are specified" << std::endl <<
-"    -g/--gaps-bed FILE  write BED file containing intervals for N-gaps," << std::endl <<
+"    -o/--output FILE    Write stats output to FILE.  Default is to write to" << std::endl <<
+"                        'inputfilename.stats.fa'." << std::endl <<
+"    -s/--sequences      Produce stats for individual sequences" << std::endl <<
+"    -S/--no-sequences   Do NOT produce stats for individual sequences" << std::endl <<
+"    -g/--gaps-bed FILE  Write BED file containing intervals for N-gaps," << std::endl <<
 "                        if not specified defaults to output file with" << std::endl <<
 "                        suffix " << gaps_bed_default_suffix << std::endl <<
-"    -G/--no-gaps-bed    do NOT write a BED file of N-gaps" << std::endl <<
-"    -d/--header         write a header of column names to the output file" << std::endl <<
-"    -D/--no-header      do NOT write a header to the output file" << std::endl <<
-"    -t/--total          include total stats for all sequences" << std::endl <<
-"    -T/--no-total       do NOT include total stats for all sequences" << std::endl <<
-"    --comma             separate output columns with commas ','" << std::endl <<
-"    --tab               separate output columns with tabs '\\t'" << std::endl <<
-"    --assembly-stats    include assembly stats in total stats" << std::endl <<
-"    --genome-size INT   expected genome size, required for NG and LG" << std::endl <<
+"    -G/--no-gaps-bed    Do NOT write a BED file of N-gaps" << std::endl <<
+"" << std::endl <<
+"    -u/--summary        Include summary stats for all sequences" << std::endl <<
+"    -U/--no-summary     Do NOT include summary stats for all sequences" << std::endl <<
+"    --assembly-stats    Include assembly stats in summary stats" << std::endl <<
+"    --genome-size INT   Expected genome size, required for NG and LG" << std::endl <<
 "                        assembly stats" << std::endl <<
-"    -s/--sequences      produce stats for individual sequences" << std::endl <<
-"    -S/--no-sequences   do NOT produce stats for individual sequences" << std::endl <<
-"    -h/-?/--help        produce this help message" << std::endl <<
-"    --debug INT         debug output level INT" << std::endl <<
+"" << std::endl <<
+"    -d/--header         Write a header of column names to the output file" << std::endl <<
+"    -D/--no-header      Do NOT write a header to the output file" << std::endl <<
+"" << std::endl <<
+"    --comma             Separate output columns with commas ','" << std::endl <<
+"    --tab               Separate output columns with tabs '\\t'" << std::endl <<
+"    -h/-?/--help        Produce this help message" << std::endl <<
+"    --debug INT         Debug output level INT" << std::endl <<
 "" << std::endl;
     exit(arg);
 }
@@ -827,7 +832,7 @@ int main(int argc, char *argv[]) {
            OPT_query,
            OPT_gaps_bed,       OPT_no_gaps_bed,
            OPT_header,         OPT_no_header, 
-           OPT_total,          OPT_no_total, 
+           OPT_summary,        OPT_no_summary, 
            OPT_sequences,      OPT_no_sequences, 
            OPT_assembly_stats, OPT_genome_size,
            OPT_tab,            OPT_comma, 
@@ -850,10 +855,10 @@ int main(int argc, char *argv[]) {
         { OPT_header,        "-d",                SO_NONE },
         { OPT_no_header,     "--no-header",       SO_NONE },
         { OPT_no_header,     "-D",                SO_NONE },
-        { OPT_total,         "--total",           SO_NONE },
-        { OPT_total,         "-t",                SO_NONE },
-        { OPT_no_total,      "--no-total",        SO_NONE },
-        { OPT_no_total,      "-T",                SO_NONE },
+        { OPT_summary,       "--summary",           SO_NONE },
+        { OPT_summary,       "-u",                SO_NONE },
+        { OPT_no_summary,    "--no-summary",        SO_NONE },
+        { OPT_no_summary,    "-U",                SO_NONE },
         { OPT_sequences,     "--sequences",       SO_NONE },
         { OPT_sequences,     "-s",                SO_NONE },
         { OPT_no_sequences,  "--no-sequences",    SO_NONE },
@@ -898,10 +903,10 @@ int main(int argc, char *argv[]) {
             opt_header = true; break;
         case OPT_no_header:
             opt_header = false; break;
-        case OPT_total:
-            opt_total = true; break;
-        case OPT_no_total:
-            opt_total = false; break;
+        case OPT_summary:
+            opt_summary = true; break;
+        case OPT_no_summary:
+            opt_summary = false; break;
         case OPT_sequences:
             opt_sequences = true; break;
         case OPT_no_sequences:
@@ -972,8 +977,8 @@ int main(int argc, char *argv[]) {
             fastastats.create_gaps_bed(opt_gaps_bed, opt_query, opt_header);
         return 0;
     }
-    if (opt_total)
-        fastastats.create_total_table(output, opt_sep, opt_header);
+    if (opt_summary)
+        fastastats.create_summary_table(output, opt_sep, opt_header);
     if (opt_sequences)
         fastastats.create_sequence_table(output, opt_sep, opt_header);
     if (opt_create_gaps_bed)
