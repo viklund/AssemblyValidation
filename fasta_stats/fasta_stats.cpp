@@ -192,7 +192,7 @@ class FastaFileStats {
             while ((c = toupper(*s++))) {
                 if (c == 'N') {
                     if (! current_gap_start) {
-                        current_gap_start = s - start;
+                        current_gap_start = s - start - 1;
                         current_gap_len = 1;
                     } else ++current_gap_len;
                     continue;
@@ -248,6 +248,7 @@ class FastaFileStats {
         SequenceComposition () {
             m['A'] = 0; m['C'] = 0; m['G'] = 0; m['T'] = 0;
             m['N'] = 0; m['*'] = 0;
+            CpG = 0;
         }
         double calc_GC(uint64_t sz) {
             return(double(m['G'] + m['C']) / double(sz));
@@ -328,6 +329,7 @@ class FastaFileStats {
             ans.seq_name = name;
             ans.comment = comment;
             ans.length = length;
+            ans.file_index = file_index;
             ans.A = composition.m['A'];
             ans.C = composition.m['C'];
             ans.G = composition.m['G'];
@@ -372,6 +374,7 @@ class FastaFileStats {
             s << sep << "gapnum";
             s << sep << "gaptotlen";
             s << sep << "gapminlen";
+            s << sep << "gapnminlen";
             s << sep << "gapmaxlen";
             s << sep << "gapmeanlen";
             s << sep << "gapmedlen";
@@ -382,6 +385,7 @@ class FastaFileStats {
             s << name;
             s << sep << comment;
             s << sep << length;
+            s << sep << file_index;
             s << sep << composition.m['A'];
             s << sep << composition.m['C'];
             s << sep << composition.m['G'];

@@ -36,14 +36,17 @@ Options processing uses Brodie Thiesfield's [SimpleOpt.h](https://github.com/bro
 
 TODO
 ----
-
-* Produce assembly stats: N50, NG50, LG50, L50
+* Look for more stats bugs
+* Rethink the stats return mechanism
+* I am sure I can do a lot more streamlining of the classes, ugh
 * check returns of `malloc` and `realloc` in `kseq.h`
 * `free` the `kseq` buffer(s?) after constructing `FastaSequenceStats` object
 * error out on meeting non-Fasta sequences
 
 DONE
 ----
+* Fixed some stats bugs, look for more
+* Produce assembly stats: N50, NG50, LG50, L50
 * Clarified output filenames
 * Read Fasta sequences from **stdin**
 * Retyped `kseq.h` to use `int64_t` where possible
