@@ -2,6 +2,7 @@
 // TODO: make sure can const the returned stats, must use .at() instead of []
 // TODO: error if not a Fasta sequence
 // TODO: adjust default output filenames
+// TODO: something is up with the assembly stats, maps need to be checked
 // DONE: add CpG islands... make a transition matrix?
 // DONE: get working! :-)
 
@@ -38,11 +39,11 @@ static std::string opt_sep = comma;           // table column separator
 static std::string opt_assembly;              // summary assembly stats file
 const static std::string assembly_default_file = "assembly.txt";
 const static std::string assembly_default_suffix = ".assembly.txt";
-static std::string opt_output;  // output file
+static std::string opt_output;                // output file
 const static std::string output_default_suffix = ".stats.txt";
 static bool        opt_stdin = false;
 static bool        from_stdin = false;
-static std::string opt_gaps_bed;  // gaps BED file
+static std::string opt_gaps_bed;              // gaps BED file
 const static std::string gaps_bed_default_file = "gaps.bed";
 const static std::string gaps_bed_default_suffix = ".gaps.bed";
 static bool        opt_create_gaps_bed = true;
