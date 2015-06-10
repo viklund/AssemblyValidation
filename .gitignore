@@ -12,11 +12,11 @@ a.out
 # fasta_stats
 fasta_stats/fasta_stats
 fasta_stats/test*
-fasta_stats/*.fa
-fasta_stats/*.bed
+#fasta_stats/*.fa
+#fasta_stats/*.bed
 fasta_stats/sequences.txt
-fasta_stats/*gaps.bed
-fasta_stats/*stats.txt
+#fasta_stats/*gaps.bed
+#fasta_stats/*stats.txt
 
 # Distribution / packaging
 .Python
