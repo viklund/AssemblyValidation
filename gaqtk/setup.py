@@ -1,34 +1,36 @@
 # Copyright (C) 2015 by Per Unneberg
 from setuptools import setup, find_packages
-import os
 import glob
+import versioneer
 
-setup(name = "gaqtk",
-      version = "0.1.0",
-      author = "Per Unneberg",
-      author_email = "per.unneberg@scilifelab.se",
-      description = "Genome assembly quality visualization toolkit",
-      license = "MIT",
-      scripts = glob.glob('scripts/*.py'),
-      install_requires = [
+versioneer.VCS = 'git'
+versioneer.versionfile_source = 'gaqtk/_version.py'
+versioneer.versionfile_build = 'gaqtk/_version.py'
+versioneer.tag_prefix = ''  # tags are like 1.2.0
+versioneer.parentdir_prefix = 'gaqtk-'  # dirname like 'myproject-1.2.0'
+
+setup(name="gaqtk",
+      # version=versioneer.get_version(),
+      # cmdclass=versioneer.get_cmdclass(),
+      author="Per Unneberg",
+      author_email="per.unneberg@scilifelab.se",
+      description="Genome assembly quality visualization toolkit",
+      license="MIT",
+      scripts=glob.glob('scripts/*.py') + glob.glob('bin/*'),
+      install_requires=[
           "pyyaml",
-          "mpld3",
           "bokeh",
           "jinja2",
-          "matplotlib",
           "nose",
       ],
-      test_suite = 'nose.collector',
+      test_suite='nose.collector',
       packages=find_packages(exclude=['ez_setup', 'test*']),
-      namespace_packages = [
+      namespace_packages=[
           'gaqtk',
       ],
-      package_data = {
-        'gaqtk' : [
-            'static/*',
-            'templates/*',
-            ],
-        },
-  )
-
-os.system("git rev-parse --short --verify HEAD > ~/.viz_version")
+      package_data={
+          'gaqtk': [
+              'static/*',
+              'templates/*',
+          ],
+      })
