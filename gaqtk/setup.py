@@ -10,8 +10,8 @@ versioneer.tag_prefix = ''  # tags are like 1.2.0
 versioneer.parentdir_prefix = 'gaqtk-'  # dirname like 'myproject-1.2.0'
 
 setup(name="gaqtk",
-      # version=versioneer.get_version(),
-      # cmdclass=versioneer.get_cmdclass(),
+      version=versioneer.get_version(),
+      cmdclass=versioneer.get_cmdclass(),
       author="Per Unneberg",
       author_email="per.unneberg@scilifelab.se",
       description="Genome assembly quality visualization toolkit",
