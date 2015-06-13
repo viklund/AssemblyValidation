@@ -8,19 +8,20 @@ CXXFLAGS = $(CXXINCLUDEDIR) -D_FILE_OFFSET_BITS=64 -Wall -ggdb -g3 -O0 -fno-inli
 LIBS = -lz
 RM = rm -f
 
-OBJ  = fasta_stats.o
-
-HEADER = kseq.h
-
 BIN  = fasta_stats
 
-all: $(BIN)
+OBJ  = fasta_stats.o
 
+HEADER = FastaStats.h
+
+all: $(BIN)
 
 $(BIN): $(OBJ)
 	$(CXX) $(CXXFLAGS) $(OBJ) -o $@ $(LIBS)
 
 $(OBJ): $(HEADER)
+
+$(HEADER): kseq.h
 
 clean: 
 	$(RM) $(OBJ) $(BIN)
