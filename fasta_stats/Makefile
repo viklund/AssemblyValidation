@@ -21,7 +21,7 @@ $(BIN): $(OBJ)
 
 $(OBJ): $(HEADER)
 
-$(HEADER): kseq.h
+# $(HEADER): kseq.h  # no longer depends on kseq.h, it is included complete
 
 clean: 
 	$(RM) $(OBJ) $(BIN)
