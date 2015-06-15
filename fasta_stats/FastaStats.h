@@ -27,6 +27,8 @@ extern "C" {
 // Heng Li's kseq.h included complete.  I was thinking to remove the FastQ
 // recognition for streamlining but decided against that as it is so
 // lightweight already.
+//
+// http://lh3lh3.users.sourceforge.net/kseq.shtml
 
 /* The MIT License
 

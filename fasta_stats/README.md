@@ -1,7 +1,11 @@
 fasta_stats
 ===========
 
-A class that reads and reports on contents of Fasta-format sequences.  This class will be used in FRCbam, and here we initiate development the class and use it to power a simple tool for quickly reporting contig contents.
+This C++ repository contains the `FastaStats` namespace which defines a few classes that read and report on contents of Fasta-format sequences.
+
+The `fasta_stats` executable wraps around this namespace to act as a standalone Fasta file stats tool.
+
+`FastaStats` will be used in FRCbam for producing stats for assembly evaluation.
 
 With standalone use, `fasta_stats file.fa` will produce a table of file and sequence statistics to `file.fa.stats.txt` and a BED-format file of `N`-gaps to `file.fa.gaps.bed`.  The locations for each can be modified with `-o/--output` and `-g/--gaps-bed`, respectively.
 
@@ -30,7 +34,7 @@ Option  |  Meaning
 `--debug INT` | Debug level (0 for off)
 `-h/-?/--help` | Very little help
 
-Fasta sequences are read using a modified version of Heng Li's [kseq.h](http://lh3lh3.users.sourceforge.net/kseq.shtml) header file, which carries the MIT License.
+Fasta sequences are read using a modified version of Heng Li's [kseq.h](http://lh3lh3.users.sourceforge.net/kseq.shtml) header file, which carries the MIT License.  The source has been placed directly within the `FastaStats` namespace so no separate file for inclusion is required.
 
 Options processing uses Brodie Thiesfield's [SimpleOpt.h](https://github.com/brofield/simpleopt) which also carries the MIT License.
 
