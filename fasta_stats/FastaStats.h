@@ -2,7 +2,7 @@
 // TODO: make sure can const the returned stats, must use .at() instead of []
 // TODO: error if not a Fasta sequence
 // TODO: adjust default output filenames
-// DONE: include kseq.h source in here 
+// DONE: include kseq.h source in here
 // DONE: something is up with the assembly stats, maps need to be checked
 // DONE: add CpG islands... make a transition matrix?
 // DONE: get working! :-)
@@ -21,9 +21,12 @@
 namespace FastaStats {
 
 extern "C" {
+
 #include <zlib.h>
 
-// kseq.h included complete
+// Heng Li's kseq.h included complete.  I was thinking to remove the FastQ
+// recognition for streamlining but decided against that as it is so
+// lightweight already.
 
 /* The MIT License
 
@@ -229,13 +232,14 @@ static int64_t kseq_read(kseq_t *seq)
 
 // end of kseq.h
 
-}
+}  // extern "C"
 
 int         fs_debug = 0;
 std::string fs_separator = ",";
 
 // These are classes returned from queries to FastaFileStats.  They are
 // filled when needed but unused otherwise.
+
 typedef std::map<double, uint64_t>       QuantStats_t;
 typedef QuantStats_t::iterator           QuantStats_t_I;
 typedef QuantStats_t::const_iterator     QuantStats_t_cI;
@@ -251,7 +255,37 @@ struct SummarySequenceStats {
              gap_max_len;
     double gap_mean_len, gap_median_len;
     QuantStats_t Nq, Lq, NGq, LGq;
+    void dump(std::ostream& os, bool header = true, std::string sep = ",") const {
+        if (header)
+            os << "filename" << sep << "genome_size" << sep << "num" <<
+                sep << "total_len" <<
+                sep << "min_len" << sep << "num_min_len" <<
+                sep << "short_len" << sep << "num_short_len" <<
+                sep << "max_len" << sep << "mean_len" << sep << "median_len" <<
+                sep << "A" << sep << "C" << sep << "G" << sep << "T" <<
+                sep << "N" << sep << "O" <<
+                sep << "GC" << sep << "GCwN" << sep << "CpG" <<
+                sep << "gapnum" << sep << "gaptotlen" << sep << "gapminlen" <<
+                sep << "gapnminlen" << sep << "gapmaxlen" <<
+                sep << "gapmeanlen" << sep << "gapmedlen" <<
+                sep << "QuantsNotIncluded" <<
+                std::endl;
+        os << filename << sep << genome_size << sep << num <<
+            sep << total_len <<
+            sep << min_len << sep << num_min_len <<
+            sep << short_len << sep << num_short_len <<
+            sep << max_len << sep << mean_len << sep << median_len <<
+            sep << A << sep << C << sep << G << sep << T <<
+            sep << N << sep << O <<
+            sep << GC << sep << GC_with_N << sep << CpG <<
+            sep << gap_num << sep << gap_total_len << sep << gap_min_len <<
+            sep << gap_num_min_len << sep << gap_max_len <<
+            sep << gap_mean_len << sep << gap_median_len <<
+            sep << "QuantsNotIncluded" <<
+            std::endl;
+    }
 };
+
 struct SingleSequenceStats {
     std::string seq_name;
     std::string comment;
@@ -267,11 +301,11 @@ struct SingleSequenceStats {
             os << "name" << sep << "comment" << sep << "len" << sep << "idx" <<
                 sep << "A" << sep << "C" << sep << "G" << sep << "T" << sep << "N" <<
                 sep << "O" << sep << "GC" << sep << "GCwN" << sep << "CpG" <<
-                sep << "gapnum" << sep << "gaptotlen" << sep << "gapminlen" << 
+                sep << "gapnum" << sep << "gaptotlen" << sep << "gapminlen" <<
                 sep << "gapnminlen" << sep << "gapmaxlen" << sep << "gapmeanlen" <<
                 sep << "gapmedlen" <<
                 std::endl;
-        os << seq_name << sep << comment << sep << length << sep << file_index << 
+        os << seq_name << sep << comment << sep << length << sep << file_index <<
             sep << A << sep << C << sep << G << sep << T << sep << N <<
             sep << O << sep << GC << sep << GC_with_N << sep << CpG <<
             sep << gap_num << sep << gap_total_len << sep << gap_min_len <<
@@ -305,10 +339,10 @@ class FastaFileStats {
         uint64_t            num, total_len, min_len, num_min_len, max_len;
         double              mean_len, median_len;
 
-        struct Interval {  
+        struct Interval {
             std::string seq_name;
             uint64_t start, length;  // 0-based
-            Interval(const std::string& s, const uint64_t st, const uint64_t len) 
+            Interval(const std::string& s, const uint64_t st, const uint64_t len)
                 : seq_name(s), start(st), length(len)
             { }
             uint64_t start_bed() const { return start; }
@@ -428,7 +462,7 @@ class FastaFileStats {
             unsigned char c;
             int CpG_state = 0; // 1: if C was just seen 0: otherwise
             while ((c = *s++)) {
-                if (! track_case) 
+                if (! track_case)
                     c = toupper(c);
                 switch(c) {
                     case 'N': case 'n':
@@ -935,7 +969,7 @@ class FastaFileStats {
         create_gaps_bed(os, query, header);
         os.close();
     }
-    void create_gaps_bed(std::ostream& os = std::cout, 
+    void create_gaps_bed(std::ostream& os = std::cout,
                          const std::string& query = "",
                          bool header = true) const {
         if (header) {
