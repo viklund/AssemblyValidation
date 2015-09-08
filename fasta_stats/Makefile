@@ -1,10 +1,17 @@
 # Makefile for chrom-gc
 
-CXX  = llvm-g++ # g++
-CC   = llvm-g++ # g++
+uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
 
-CXXINCLUDEDIR = 
-CXXFLAGS = $(CXXINCLUDEDIR) -D_FILE_OFFSET_BITS=64 -Wall -ggdb -g3 -O0 -fno-inline -fno-eliminate-unused-debug-types
+CXX  = g++
+CC   = g++
+
+ifeq ($(uname_S),Darwin)
+	CXX  = llvm-g++
+	CC   = llvm-g++
+endif
+
+CXXINCLUDEDIR =
+CXXFLAGS = -std=c++11 $(CXXINCLUDEDIR) -D_FILE_OFFSET_BITS=64 -Wall -ggdb -g3 -O0 -fno-inline -fno-eliminate-unused-debug-types
 LIBS = -lz
 RM = rm -f
 
