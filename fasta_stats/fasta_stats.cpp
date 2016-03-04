@@ -1,6 +1,8 @@
+// TODO: add detection of C- and G-gaps
 // TODO: separate all-sequences and single-sequences output
 // TODO: make sure can const the returned stats, must use .at() instead of []
 // TODO: error if not a Fasta sequence
+// DONE: use namespace std
 // DONE: adjust default output filenames
 // DONE: something is up with the assembly stats, maps need to be checked
 // DONE: add CpG islands... make a transition matrix?
@@ -10,6 +12,7 @@
 // the FastaStats namespace and classes
 #include "FastaStats.h"
 using namespace FastaStats;
+using namespace std;
 
 #include <vector>
 #include <map>
@@ -20,36 +23,45 @@ using namespace FastaStats;
 #include <iostream>
 #include <fstream>
 
-const std::string tab = "\t";
-const std::string comma = ",";
+const string tab = "\t";
+const string comma = ",";
 
 #define DEBUG 0
-static int         opt_debug = DEBUG;
+static int                   opt_debug = DEBUG;
 
-static std::string opt_query;                 // restrict output to only this sequence
-static bool        opt_summary = true;        // produce summary table for all sequences
-static bool        opt_sequences = true;      // produce output for each sequence
-static bool        opt_header = true;         // add headers to tables output
-static std::string opt_sep = comma;           // table column separator
-static std::string opt_assembly;              // summary assembly stats file
-const static std::string assembly_default_file = "assembly.txt";
-const static std::string assembly_default_suffix = ".assembly.txt";
-static std::string opt_output;                // output file
-const static std::string output_default_suffix = ".stats.txt";
-static bool        opt_stdin = false;
-static bool        from_stdin = false;
-static std::string opt_gaps_bed;              // gaps BED file
-const static std::string gaps_bed_default_file = "gaps.bed";
-const static std::string gaps_bed_default_suffix = ".gaps.bed";
-static bool        opt_create_gaps_bed = true;
-static bool        opt_assembly_stats = false;
-static uint64_t    opt_genome_size = 0ULL;
+static string           opt_query;                 // restrict output to only this sequence
+static bool                  opt_summary = true;        // produce summary table for all sequences
+static bool                  opt_sequences = true;      // produce output for each sequence
+static bool                  opt_header = true;         // add headers to tables output
+static string           opt_sep = comma;           // table column separator
+static string           opt_assembly;              // summary assembly stats file
+const static string     assembly_default_file = "assembly.txt";
+const static string     assembly_default_suffix = ".assembly.txt";
+static string           opt_output;                // output file
+const static string     output_default_suffix = ".stats.txt";
+static bool                  opt_stdin = false;
+static bool                  from_stdin = false;
+
+static bool                  opt_create_gaps_bed = true;
+static string           opt_gaps_bed;              // gaps BED file
+const static string     gaps_bed_default_file = "gaps.bed";
+const static string     gaps_bed_default_suffix = ".gaps.bed";
+
+static string           opt_gapsCG_bed;            // gapsGC BED file
+const static string     gapsCG_bed_default_file = "gapsCG.bed";
+const static string     gapsCG_bed_default_suffix = ".gapsCG.bed";
+static uint64_t              opt_gapCG_min = 10U;
+
+static bool                  opt_create_gapsCG_bed = false;
+
+static bool                  opt_assembly_stats = false;
+static uint64_t              opt_genome_size = 0ULL;
 
 
 // Remove path from filename
-std::string localBasename(const std::string& pathname, bool remove_extension = false) {
+string localBasename(const string& pathname, bool remove_extension = false) {
     size_t slash = pathname.find_last_of('/');
-    std::string filename(pathname);
+    string filename(pathname);
     if (slash < pathname.length())  // found '/'
         filename = pathname.substr(slash + 1);
     if (remove_extension) {
@@ -62,41 +74,46 @@ std::string localBasename(const std::string& pathname, bool remove_extension = f
 
 void usage (int arg = 0)
 {
-    std::cerr << 
-"USAGE:" << std::endl <<
-"" << std::endl <<
-"     fasta_stats [ options ] [ fasta-file.fa ]" << std::endl <<
-"" << std::endl <<
-"OPTIONS:" << std::endl <<
-"" << std::endl <<
-"    -q/--query NAME     Produce stats for sequence NAME.  Default is to produce" << std::endl <<
-"                        stats for all sequences." << std::endl <<
-"    -/--stdin           Expect input on STDIN, write output to STDOUT" << std::endl <<
-"                        and gaps to '" << gaps_bed_default_file << "' unless --output and/or" << std::endl <<
-"                        --gaps-bed are specified" << std::endl <<
-"    -o/--output FILE    Write stats output to FILE.  Default is to write to" << std::endl <<
-"                        'inputfilename.stats.fa'." << std::endl <<
-"    -s/--sequences      Produce stats for individual sequences" << std::endl <<
-"    -S/--no-sequences   Do NOT produce stats for individual sequences" << std::endl <<
-"    -g/--gaps-bed FILE  Write BED file containing intervals for N-gaps," << std::endl <<
-"                        if not specified defaults to output file with" << std::endl <<
-"                        suffix " << gaps_bed_default_suffix << std::endl <<
-"    -G/--no-gaps-bed    Do NOT write a BED file of N-gaps" << std::endl <<
-"" << std::endl <<
-"    -u/--summary        Include summary stats for all sequences" << std::endl <<
-"    -U/--no-summary     Do NOT include summary stats for all sequences" << std::endl <<
-"    --assembly-stats    Include assembly stats in summary stats" << std::endl <<
-"    --genome-size INT   Expected genome size, required for NG and LG" << std::endl <<
-"                        assembly stats" << std::endl <<
-"" << std::endl <<
-"    -d/--header         Write a header of column names to the output file" << std::endl <<
-"    -D/--no-header      Do NOT write a header to the output file" << std::endl <<
-"" << std::endl <<
-"    --comma             Separate output columns with commas ','" << std::endl <<
-"    --tab               Separate output columns with tabs '\\t'" << std::endl <<
-"    -h/-?/--help        Produce this help message" << std::endl <<
-"    --debug INT         Debug output level INT" << std::endl <<
-"" << std::endl;
+    cerr << 
+"USAGE:" << endl <<
+"" << endl <<
+"     fasta_stats [ options ] [ fasta-file.fa ]" << endl <<
+"" << endl <<
+"OPTIONS:" << endl <<
+"" << endl <<
+"    -q/--query NAME     Produce stats for sequence NAME.  Default is to produce" << endl <<
+"                        stats for all sequences." << endl <<
+"    -/--stdin           Expect input on STDIN, write output to STDOUT" << endl <<
+"                        and gaps to '" << gaps_bed_default_file << "' unless --output and/or" << endl <<
+"                        --gaps-bed are specified" << endl <<
+"    -o/--output FILE    Write stats output to FILE.  Default is to write to" << endl <<
+"                        'inputfilename.stats.fa'." << endl <<
+"    -s/--sequences      Produce stats for individual sequences" << endl <<
+"    -S/--no-sequences   Do NOT produce stats for individual sequences" << endl <<
+"    -g/--gaps-bed FILE  Write BED file containing intervals for N-gaps," << endl <<
+"                        if not specified defaults to output file with" << endl <<
+"                        suffix " << gaps_bed_default_suffix << endl <<
+"    -G/--no-gaps-bed    Do NOT write a BED file of N-gaps" << endl <<
+"    --gaps-CG           Write BED file containing intervals for C- and G-gaps," << endl <<
+"                        filename is output file with suffix " << gapsCG_bed_default_suffix <<
+"                        or is " << gapsCG_bed_default_file << " if input from STDIN" << endl <<
+"    --gaps-CG-min INT   Minimum size (bp) to consider a homopolymer run of C or G" << endl <<
+"                        to be a C- or G-gap; default is " << opt_gapCG_min << endl <<
+"" << endl <<
+"    -u/--summary        Include summary stats for all sequences" << endl <<
+"    -U/--no-summary     Do NOT include summary stats for all sequences" << endl <<
+"    --assembly-stats    Include assembly stats in summary stats" << endl <<
+"    --genome-size INT   Expected genome size, required for NG and LG" << endl <<
+"                        assembly stats" << endl <<
+"" << endl <<
+"    -d/--header         Write a header of column names to the output file" << endl <<
+"    -D/--no-header      Do NOT write a header to the output file" << endl <<
+"" << endl <<
+"    --comma             Separate output columns with commas ','" << endl <<
+"    --tab               Separate output columns with tabs '\\t'" << endl <<
+"    -h/-?/--help        Produce this help message" << endl <<
+"    --debug INT         Debug output level INT" << endl <<
+"" << endl;
     exit(arg);
 }
 
@@ -155,7 +172,7 @@ int main(int argc, char *argv[]) {
 
     while (args.Next()) {
         if (args.LastError() != SO_SUCCESS) {
-            std::cerr << "invalid argument " << args.OptionText() << std::endl;
+            cerr << "invalid argument " << args.OptionText() << endl;
             exit(1);
         }
         switch(args.OptionId()) {
@@ -191,7 +208,7 @@ int main(int argc, char *argv[]) {
         case OPT_genome_size:
             opt_genome_size = strtoull(args.OptionArg(), NULL, 10);
             if (opt_genome_size == 0ULL || opt_genome_size == ULLONG_MAX) {
-                std::cerr << "--genome-size argument invalid " << args.OptionArg() << std::endl;
+                cerr << "--genome-size argument invalid " << args.OptionArg() << endl;
                 exit(1);
             }
             break;
@@ -206,15 +223,15 @@ int main(int argc, char *argv[]) {
             break;
 #endif
         default:
-            std::cerr << "unknown argument " << args.OptionText() << std::endl;
+            cerr << "unknown argument " << args.OptionText() << endl;
             exit(1);
         }
     }
 
     // Input and output files
-    std::string input;
+    string input;
     if (args.FileCount() > 1) {
-        std::cerr << "at most one sequence file as input" << std::endl;
+        cerr << "at most one sequence file as input" << endl;
         exit(1);
     } else if (args.FileCount() == 1) {
         input.assign(args.File(0));
@@ -222,7 +239,7 @@ int main(int argc, char *argv[]) {
         input = "/dev/stdin";
         from_stdin = true;
     } else {
-        std::cerr << "at least one sequence file as input, or stdin with -/--stdin" << std::endl;
+        cerr << "at least one sequence file as input, or stdin with -/--stdin" << endl;
         exit(1);
     }
     if (opt_output.empty()) {
@@ -236,16 +253,16 @@ int main(int argc, char *argv[]) {
     if (opt_create_gaps_bed && opt_gaps_bed.empty())
         opt_gaps_bed = opt_stdin ? gaps_bed_default_file : localBasename(input, false) + gaps_bed_default_suffix;
     if (opt_debug)
-        std::cerr << "input:" << input << ":   output:" << opt_output << 
-            ":  gaps.bed:" << opt_gaps_bed << ":" << std::endl;
+        cerr << "input:" << input << ":   output:" << opt_output << 
+            ":  gaps.bed:" << opt_gaps_bed << ":" << endl;
 
-    std::ofstream output(opt_output.c_str(), std::ofstream::out);
+    ofstream output(opt_output.c_str(), ofstream::out);
 
     FastaFileStats fastastats(input.c_str(), opt_genome_size);
 
     // produce output
     if (opt_debug > 1)
-        fastastats.dump(std::cerr);
+        fastastats.dump(cerr);
     if (! opt_query.empty()) {
         SingleSequenceStats s = fastastats.sequence_stats(opt_query);
         s.dump(output);
