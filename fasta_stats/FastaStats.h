@@ -333,7 +333,7 @@ class FastaFileStats {
     static const uint64_t     min_gap_CG_len = 10;    // set in constructor
     std::vector<double>       _quantiles;  // filled by set_quantiles()
 
-    static const bool         debug_gaps = true;
+    static const bool         debug_gaps = false;
 
   public:
 
@@ -443,24 +443,24 @@ class FastaFileStats {
             uint64_t          current_gap_len = 0;
             gaptype_t         current_gaptype = gap_U;
             unsigned char c;
-            std::cerr << "fill_NCG: n:" << n << ":  s:" << s << ":" << std::endl;
+            if (debug_gaps) std::cerr << "fill_NCG: n:" << n << ":  s:" << s << ":" << std::endl;
 
 #define CHECK_GAPLENGTH(_l, _gt) (((_gt == gap_N && _l >= min_gap_len) || ((_gt == gap_C || _gt == gap_G) && _l >= min_gap_CG_len)) ? true : false)
 
             while ((c = toupper(*s++))) {
-                std::cerr << "fill_NCG loop: c:" << c << "  s:" << s << 
+                if (debug_gaps) std::cerr << "fill_NCG loop: c:" << c << "  s:" << s << 
                     ":  " << gaptype_string(current_gaptype) <<
                     " @" << current_gap_start << " ." << current_gap_len << std::endl;
                 if (c == 'N') {
                     switch(current_gaptype) {
                         case gap_N:  // continue gap
                             ++current_gap_len;
-                            std::cerr << gaptype_string(current_gaptype) << " continue @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " continue @" << current_gap_start << " ." << current_gap_len << std::endl;
                             break;
                         default:  // end current gap, start a gap
-                            std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
+                            if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
                             if (CHECK_GAPLENGTH(current_gap_len, current_gaptype)) {
-                                std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
+                                if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
                                 g.push_back(Interval(n, current_gap_start, current_gap_len, current_gaptype));
                             }
                             // >>>>>>> FALLTHROUGH
@@ -468,19 +468,19 @@ class FastaFileStats {
                             current_gaptype = gap_N;
                             current_gap_start = s - start - 1;
                             current_gap_len = 1;
-                            std::cerr << gaptype_string(current_gaptype) << " started @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " started @" << current_gap_start << " ." << current_gap_len << std::endl;
                             break;
                     }
                 } else if (c == 'C') {
                     switch(current_gaptype) {
                         case gap_C:  // continue gap
                             ++current_gap_len;
-                            std::cerr << gaptype_string(current_gaptype) << " continue @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " continue @" << current_gap_start << " ." << current_gap_len << std::endl;
                             break;
                         default:  // end current gap, start a gap
-                            std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
+                            if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
                             if (CHECK_GAPLENGTH(current_gap_len, current_gaptype)) {
-                                std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
+                                if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
                                 g.push_back(Interval(n, current_gap_start, current_gap_len, current_gaptype));
                             }
                             // >>>>>>> FALLTHROUGH
@@ -488,19 +488,19 @@ class FastaFileStats {
                             current_gaptype = gap_C;
                             current_gap_start = s - start - 1;
                             current_gap_len = 1;
-                            std::cerr << gaptype_string(current_gaptype) << " started @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " started @" << current_gap_start << " ." << current_gap_len << std::endl;
                             break;
                     }
                 } else if (c == 'G') {
                     switch(current_gaptype) {
                         case gap_G:  // continue gap
                             ++current_gap_len;
-                            std::cerr << gaptype_string(current_gaptype) << " continue @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " continue @" << current_gap_start << " ." << current_gap_len << std::endl;
                             break;
                         default:  // end current gap, start a gap
-                            std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
+                            if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
                             if (CHECK_GAPLENGTH(current_gap_len, current_gaptype)) {
-                                std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
+                                if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
                                 g.push_back(Interval(n, current_gap_start, current_gap_len, current_gaptype));
                             }
                             // >>>>>>> FALLTHROUGH
@@ -508,27 +508,27 @@ class FastaFileStats {
                             current_gaptype = gap_G;
                             current_gap_start = s - start - 1;
                             current_gap_len = 1;
-                            std::cerr << gaptype_string(current_gaptype) << " started @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " started @" << current_gap_start << " ." << current_gap_len << std::endl;
                             break;
                     }
                 } else {  // A or T or something else
                     if (current_gaptype != gap_U) {
-                        std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
+                        if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
                         if (CHECK_GAPLENGTH(current_gap_len, current_gaptype)) {
-                            std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
+                            if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
                             g.push_back(Interval(n, current_gap_start, current_gap_len, current_gaptype));
                         }
                         current_gap_start = 0;
                         current_gap_len = 0;
                         current_gaptype = gap_U;
-                        std::cerr << "gap reset" << std::endl;
+                        if (debug_gaps) std::cerr << "gap reset" << std::endl;
                     }
                 }
             }
             if (current_gaptype != gap_U) {
-                std::cerr << gaptype_string(current_gaptype) << " FINAL @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
+                if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " FINAL @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
                 if (CHECK_GAPLENGTH(current_gap_len, current_gaptype)) {
-                    std::cerr << gaptype_string(current_gaptype) << " FINAL @" << current_gap_start << " >= min len, stashing" << std::endl;
+                    if (debug_gaps) std::cerr << gaptype_string(current_gaptype) << " FINAL @" << current_gap_start << " >= min len, stashing" << std::endl;
                     g.push_back(Interval(n, current_gap_start, current_gap_len, current_gaptype));
                 }
             }
