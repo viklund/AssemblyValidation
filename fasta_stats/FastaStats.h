@@ -1125,7 +1125,7 @@ class FastaFileStats {
             os << "track name=\"gaps_" << nm << "\" ";
             os << "description=\"N-gaps (minimum length " << min_gap_len << ")";
             if (track_gaps_CG)
-               os << "and C- and G-gaps (minimum length " << min_gap_CG_len << ")";
+               os << " and C- and G-gaps (minimum length " << min_gap_CG_len << ")";
             os << " for " << (query.empty() ? "filename " : "sequence ") << nm << "\"";
             os << std::endl;
         }
