@@ -1,0 +1,8 @@
+track name="gaps_cg_gap_test.fa" description="N-gaps (minimum length 1) for filename cg_gap_test.fa"
+test	0	48	gap_G
+test2	0	49	gap_C
+test3	4	13	gap_N
+test3	14	56	gap_G
+test4	2	36	gap_C
+test4	36	45	gap_N
+test5	14	56	gap_C

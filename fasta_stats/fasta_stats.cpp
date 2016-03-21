@@ -12,6 +12,7 @@
 // the FastaStats namespace and classes
 #include "FastaStats.h"
 using namespace FastaStats;
+
 using namespace std;
 
 #include <vector>
@@ -27,35 +28,32 @@ const string tab = "\t";
 const string comma = ",";
 
 #define DEBUG 0
-static int                   opt_debug = DEBUG;
+static int              opt_debug = DEBUG;
 
 static string           opt_query;                 // restrict output to only this sequence
-static bool                  opt_summary = true;        // produce summary table for all sequences
-static bool                  opt_sequences = true;      // produce output for each sequence
-static bool                  opt_header = true;         // add headers to tables output
+static bool             opt_summary = true;        // produce summary table for all sequences
+static bool             opt_sequences = true;      // produce output for each sequence
+static bool             opt_header = true;         // add headers to tables output
 static string           opt_sep = comma;           // table column separator
 static string           opt_assembly;              // summary assembly stats file
 const static string     assembly_default_file = "assembly.txt";
 const static string     assembly_default_suffix = ".assembly.txt";
 static string           opt_output;                // output file
 const static string     output_default_suffix = ".stats.txt";
-static bool                  opt_stdin = false;
-static bool                  from_stdin = false;
+static bool             opt_stdin = false;
+static bool             from_stdin = false;
 
-static bool                  opt_create_gaps_bed = true;
+static bool             opt_create_gaps_bed = true;
 static string           opt_gaps_bed;              // gaps BED file
 const static string     gaps_bed_default_file = "gaps.bed";
 const static string     gaps_bed_default_suffix = ".gaps.bed";
 
-static string           opt_gapsCG_bed;            // gapsGC BED file
-const static string     gapsCG_bed_default_file = "gapsCG.bed";
-const static string     gapsCG_bed_default_suffix = ".gapsCG.bed";
-static uint64_t              opt_gapCG_min = 10U;
+static bool             opt_gaps_CG = false;
+static uint64_t         opt_gaps_CG_min_minimum = 10ULL;
+static uint64_t         opt_gaps_CG_min = opt_gaps_CG_min_minimum;
 
-static bool                  opt_create_gapsCG_bed = false;
-
-static bool                  opt_assembly_stats = false;
-static uint64_t              opt_genome_size = 0ULL;
+static bool             opt_assembly_stats = false;
+static uint64_t         opt_genome_size = 0ULL;
 
 
 // Remove path from filename
@@ -76,44 +74,46 @@ void usage (int arg = 0)
 {
     cerr << 
 "USAGE:" << endl <<
-"" << endl <<
+endl <<
 "     fasta_stats [ options ] [ fasta-file.fa ]" << endl <<
-"" << endl <<
+endl <<
 "OPTIONS:" << endl <<
-"" << endl <<
+endl <<
 "    -q/--query NAME     Produce stats for sequence NAME.  Default is to produce" << endl <<
 "                        stats for all sequences." << endl <<
 "    -/--stdin           Expect input on STDIN, write output to STDOUT" << endl <<
 "                        and gaps to '" << gaps_bed_default_file << "' unless --output and/or" << endl <<
 "                        --gaps-bed are specified" << endl <<
 "    -o/--output FILE    Write stats output to FILE.  Default is to write to" << endl <<
-"                        'inputfilename.stats.fa'." << endl <<
+"                        output file with suffix " << output_default_suffix << endl <<
 "    -s/--sequences      Produce stats for individual sequences" << endl <<
 "    -S/--no-sequences   Do NOT produce stats for individual sequences" << endl <<
 "    -g/--gaps-bed FILE  Write BED file containing intervals for N-gaps," << endl <<
 "                        if not specified defaults to output file with" << endl <<
 "                        suffix " << gaps_bed_default_suffix << endl <<
-"    -G/--no-gaps-bed    Do NOT write a BED file of N-gaps" << endl <<
-"    --gaps-CG           Write BED file containing intervals for C- and G-gaps," << endl <<
-"                        filename is output file with suffix " << gapsCG_bed_default_suffix <<
-"                        or is " << gapsCG_bed_default_file << " if input from STDIN" << endl <<
+"    -G/--no-gaps-bed    Do NOT write a BED file of gaps" << endl <<
+"    --gaps-CG           Include intervals for C- and G-gaps in gaps BED file." << endl <<
+"                        Setting --gaps-CG-min implies this option." << endl <<
+"                        With this option, summary gap statistics include C- and" << endl <<
+"                        G-gaps, and the 4th column of the gaps BED file indicates" << endl <<
+"                        the type of gap the entry refers to" << endl <<
 "    --gaps-CG-min INT   Minimum size (bp) to consider a homopolymer run of C or G" << endl <<
-"                        to be a C- or G-gap; default is " << opt_gapCG_min << endl <<
-"" << endl <<
+"                        to be a C- or G-gap; default is " << opt_gaps_CG_min_minimum << endl <<
+endl <<
 "    -u/--summary        Include summary stats for all sequences" << endl <<
 "    -U/--no-summary     Do NOT include summary stats for all sequences" << endl <<
 "    --assembly-stats    Include assembly stats in summary stats" << endl <<
 "    --genome-size INT   Expected genome size, required for NG and LG" << endl <<
 "                        assembly stats" << endl <<
-"" << endl <<
+endl <<
 "    -d/--header         Write a header of column names to the output file" << endl <<
 "    -D/--no-header      Do NOT write a header to the output file" << endl <<
-"" << endl <<
+endl <<
 "    --comma             Separate output columns with commas ','" << endl <<
 "    --tab               Separate output columns with tabs '\\t'" << endl <<
 "    -h/-?/--help        Produce this help message" << endl <<
 "    --debug INT         Debug output level INT" << endl <<
-"" << endl;
+endl;
     exit(arg);
 }
 
@@ -123,6 +123,7 @@ int main(int argc, char *argv[]) {
            OPT_stdin,
            OPT_query,
            OPT_gaps_bed,       OPT_no_gaps_bed,
+           OPT_gaps_CG,        OPT_gaps_CG_min,
            OPT_header,         OPT_no_header, 
            OPT_summary,        OPT_no_summary, 
            OPT_sequences,      OPT_no_sequences, 
@@ -143,6 +144,8 @@ int main(int argc, char *argv[]) {
         { OPT_gaps_bed,      "-g",                SO_REQ_SEP },
         { OPT_no_gaps_bed,   "--no-gaps-bed",     SO_NONE },
         { OPT_no_gaps_bed,   "-G",                SO_NONE },
+        { OPT_gaps_CG,       "--gaps-CG",         SO_NONE },
+        { OPT_gaps_CG_min,   "--gaps-CG-min",     SO_REQ_SEP },
         { OPT_header,        "--header",          SO_NONE },
         { OPT_header,        "-d",                SO_NONE },
         { OPT_no_header,     "--no-header",       SO_NONE },
@@ -185,12 +188,16 @@ int main(int argc, char *argv[]) {
             opt_output = args.OptionArg(); break;
         case OPT_stdin:
             opt_stdin = true; break;
-        case OPT_gaps_bed:
-            opt_gaps_bed = args.OptionArg();
-            opt_create_gaps_bed = true;
+        case OPT_gaps_CG:
+            opt_gaps_CG = true; break;
+        case OPT_gaps_CG_min:
+            opt_gaps_CG_min = strtoull(args.OptionArg(), NULL, 10);
+            if (opt_gaps_CG_min < opt_gaps_CG_min_minimum) {
+                cerr << "--gaps-CG-min argument too small " << args.OptionArg() << endl;
+                exit(1);
+            }
+            opt_gaps_CG = true;
             break;
-        case OPT_no_gaps_bed:
-            opt_create_gaps_bed = false; break;
         case OPT_header:
             opt_header = true; break;
         case OPT_no_header:
@@ -252,28 +259,46 @@ int main(int argc, char *argv[]) {
     }
     if (opt_create_gaps_bed && opt_gaps_bed.empty())
         opt_gaps_bed = opt_stdin ? gaps_bed_default_file : localBasename(input, false) + gaps_bed_default_suffix;
-    if (opt_debug)
+    if (opt_debug) {
         cerr << "input:" << input << ":   output:" << opt_output << 
-            ":  gaps.bed:" << opt_gaps_bed << ":" << endl;
+            ":  gaps_bed:" << opt_gaps_bed << ":" << 
+            ":  gaps_CG:" << opt_gaps_CG << ":" << opt_gaps_CG_min << endl;
+    }
 
     ofstream output(opt_output.c_str(), ofstream::out);
 
-    FastaFileStats fastastats(input.c_str(), opt_genome_size);
+
+    ////
+    ////  Start object to gather/serve Fasta file stats
+    ////
+    FastaFileStats fastastats(input.c_str(),
+                              opt_genome_size,
+                              opt_gaps_CG ? opt_gaps_CG_min : 0ULL);
+    ////
+
 
     // produce output
     if (opt_debug > 1)
         fastastats.dump(cerr);
-    if (! opt_query.empty()) {
+
+    if (! opt_query.empty()) {    // for a single query sequence
+
         SingleSequenceStats s = fastastats.sequence_stats(opt_query);
+
         s.dump(output);
+
         if (! opt_gaps_bed.empty())
             fastastats.create_gaps_bed(opt_gaps_bed, opt_query, opt_header);
+
         return 0;
     }
+
     if (opt_summary)
         fastastats.create_summary_table(output, opt_sep, opt_header);
+
     if (opt_sequences)
         fastastats.create_sequence_table(output, opt_sep, opt_header);
+
     if (opt_create_gaps_bed)
         fastastats.create_gaps_bed(opt_gaps_bed, "", opt_header);
 

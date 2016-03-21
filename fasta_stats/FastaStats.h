@@ -2,6 +2,10 @@
 // TODO: make sure can const the returned stats, must use .at() instead of []
 // TODO: error if not a Fasta sequence
 // TODO: adjust default output filenames
+//
+// TODO: incorporate CG gaps into standard gaps code
+// TODO: include gaptype in calc_stats()?? or somewhere else??
+// DONE: set min_gap_CG_len (now part of constructor)
 // DONE: include kseq.h source in here
 // DONE: something is up with the assembly stats, maps need to be checked
 // DONE: add CpG islands... make a transition matrix?
@@ -236,6 +240,9 @@ static int64_t kseq_read(kseq_t *seq)
 
 }  // extern "C"
 
+///////////////////////////////////////////////////////////
+
+
 int         fs_debug = 0;
 std::string fs_separator = ",";
 
@@ -258,7 +265,7 @@ struct SummarySequenceStats {
     double gap_mean_len, gap_median_len;
     QuantStats_t Nq, Lq, NGq, LGq;
     void dump(std::ostream& os, bool header = true, std::string sep = ",") const {
-        if (header)
+        if (header) {
             os << "filename" << sep << "genome_size" << sep << "num" <<
                 sep << "total_len" <<
                 sep << "min_len" << sep << "num_min_len" <<
@@ -272,6 +279,7 @@ struct SummarySequenceStats {
                 sep << "gapmeanlen" << sep << "gapmedlen" <<
                 sep << "QuantsNotIncluded" <<
                 std::endl;
+        }
         os << filename << sep << genome_size << sep << num <<
             sep << total_len <<
             sep << min_len << sep << num_min_len <<
@@ -299,7 +307,7 @@ struct SingleSequenceStats {
              gap_max_len;
     double gap_mean_len, gap_median_len;
     void dump(std::ostream& os, bool header = true, std::string sep = ",") const {
-        if (header)
+        if (header) {
             os << "name" << sep << "comment" << sep << "len" << sep << "idx" <<
                 sep << "A" << sep << "C" << sep << "G" << sep << "T" << sep << "N" <<
                 sep << "O" << sep << "GC" << sep << "GCwN" << sep << "CpG" <<
@@ -307,6 +315,7 @@ struct SingleSequenceStats {
                 sep << "gapnminlen" << sep << "gapmaxlen" << sep << "gapmeanlen" <<
                 sep << "gapmedlen" <<
                 std::endl;
+        }
         os << seq_name << sep << comment << sep << length << sep << file_index <<
             sep << A << sep << C << sep << G << sep << T << sep << N <<
             sep << O << sep << GC << sep << GC_with_N << sep << CpG <<
@@ -320,19 +329,42 @@ struct SingleSequenceStats {
 class FastaFileStats {
     // variables used for calculating 'assembly' stats for all sequences
     static const uint64_t     min_gap_len = 1;
+    static const bool         track_gaps_CG = true;  // set in constructor
+    static const uint64_t     min_gap_CG_len = 10;    // set in constructor
     std::vector<double>       _quantiles;  // filled by set_quantiles()
+
+    static const bool         debug_gaps = true;
 
   public:
 
+    enum  gaptype_t  { gap_U = 0, gap_N, gap_C, gap_G };
+    static std::string gaptype_string(gaptype_t gt) {
+        switch(gt) {
+            case gap_N: return "gap_N"; break;
+            case gap_C: return "gap_C"; break;
+            case gap_G: return "gap_G"; break;
+            default:    return "gap_U"; break;
+        }
+    }
+    static std::string gaptype_string_short(gaptype_t gt) {
+        switch(gt) {
+            case gap_N: return "N"; break;
+            case gap_C: return "C"; break;
+            case gap_G: return "G"; break;
+            default:    return "U"; break;
+        }
+    }
+
     // class GapComposition --------------------------
     //
-    // fill()                  catalogue gaps in sequence
+    // fill_N()                catalogue N-gaps in sequence
+    // fill_NCG()              catalogue N- C- and G-gaps in sequence
     // fill_length_vector()    fill a vector with gap lengths
     // calc_stats()            calc summary stats from length vector
     // dump()                  debugging dump of contents
     // print_bed()             print BED intervals for each sequence in g
     //
-    // Interval                inner class holding start and length of gap
+    // Interval                inner class holding start, length and type of gap
     //         .bed_record()   create a string holding a BED record for a gap
     //
     class GapComposition {
@@ -343,17 +375,29 @@ class FastaFileStats {
 
         struct Interval {
             std::string seq_name;
-            uint64_t start, length;  // 0-based
-            Interval(const std::string& s, const uint64_t st, const uint64_t len)
-                : seq_name(s), start(st), length(len)
-            { }
+            uint64_t    start, length;  // 0-based
+            gaptype_t   gaptype;
+            Interval(const std::string& s, const uint64_t st, const uint64_t len,
+                     const gaptype_t gt = gap_N)
+                : seq_name(s), start(st), length(len), gaptype(gt)
+            { 
+                if (debug_gaps)
+                    std::cerr << "Interval() ctor: " << s << " s:" << start << 
+                        " l:" << length << " t:" << gaptype << std::endl;
+            }
             uint64_t start_bed() const { return start; }
             uint64_t end_bed()   const { return start + length; }
             uint64_t start_gff() const { return start + 1; }
             uint64_t end_gff()   const { return start + length; }
+            std::string get_gaptype() const {
+                return gaptype_string(gaptype);
+            }
+            std::string get_gaptype_short() const {
+                return gaptype_string_short(gaptype);
+            }
             const std::string bed_record() const {
                 std::stringstream s;
-                s << seq_name << '\t' << start_bed() << '\t' << end_bed();
+                s << seq_name << '\t' << start_bed() << '\t' << end_bed() << '\t' << get_gaptype();
                 return s.str();
             }
         };
@@ -389,7 +433,108 @@ class FastaFileStats {
             else
                 median_len = g[num / 2].length;
         }
-        void fill(const std::string& n, const char* s) {
+        // TODO: should this be where the gaps_CG options are set, to restrict their scope??
+        // If so the output routines queue off of gaptype as set in the Interval so would
+        // handle output correctly regardless
+        void fill_NCG(const std::string& n, const char* s) {
+            seq_name = n;
+            const char* const start = s;
+            uint64_t          current_gap_start = 0;
+            uint64_t          current_gap_len = 0;
+            gaptype_t         current_gaptype = gap_U;
+            unsigned char c;
+            std::cerr << "fill_NCG: n:" << n << ":  s:" << s << ":" << std::endl;
+
+#define CHECK_GAPLENGTH(_l, _gt) (((_gt == gap_N && _l >= min_gap_len) || ((_gt == gap_C || _gt == gap_G) && _l >= min_gap_CG_len)) ? true : false)
+
+            while ((c = toupper(*s++))) {
+                std::cerr << "fill_NCG loop: c:" << c << "  s:" << s << 
+                    ":  " << gaptype_string(current_gaptype) <<
+                    " @" << current_gap_start << " ." << current_gap_len << std::endl;
+                if (c == 'N') {
+                    switch(current_gaptype) {
+                        case gap_N:  // continue gap
+                            ++current_gap_len;
+                            std::cerr << gaptype_string(current_gaptype) << " continue @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            break;
+                        default:  // end current gap, start a gap
+                            std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
+                            if (CHECK_GAPLENGTH(current_gap_len, current_gaptype)) {
+                                std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
+                                g.push_back(Interval(n, current_gap_start, current_gap_len, current_gaptype));
+                            }
+                            // >>>>>>> FALLTHROUGH
+                        case gap_U:  // start a gap
+                            current_gaptype = gap_N;
+                            current_gap_start = s - start - 1;
+                            current_gap_len = 1;
+                            std::cerr << gaptype_string(current_gaptype) << " started @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            break;
+                    }
+                } else if (c == 'C') {
+                    switch(current_gaptype) {
+                        case gap_C:  // continue gap
+                            ++current_gap_len;
+                            std::cerr << gaptype_string(current_gaptype) << " continue @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            break;
+                        default:  // end current gap, start a gap
+                            std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
+                            if (CHECK_GAPLENGTH(current_gap_len, current_gaptype)) {
+                                std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
+                                g.push_back(Interval(n, current_gap_start, current_gap_len, current_gaptype));
+                            }
+                            // >>>>>>> FALLTHROUGH
+                        case gap_U:  // start a gap
+                            current_gaptype = gap_C;
+                            current_gap_start = s - start - 1;
+                            current_gap_len = 1;
+                            std::cerr << gaptype_string(current_gaptype) << " started @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            break;
+                    }
+                } else if (c == 'G') {
+                    switch(current_gaptype) {
+                        case gap_G:  // continue gap
+                            ++current_gap_len;
+                            std::cerr << gaptype_string(current_gaptype) << " continue @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            break;
+                        default:  // end current gap, start a gap
+                            std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
+                            if (CHECK_GAPLENGTH(current_gap_len, current_gaptype)) {
+                                std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
+                                g.push_back(Interval(n, current_gap_start, current_gap_len, current_gaptype));
+                            }
+                            // >>>>>>> FALLTHROUGH
+                        case gap_U:  // start a gap
+                            current_gaptype = gap_G;
+                            current_gap_start = s - start - 1;
+                            current_gap_len = 1;
+                            std::cerr << gaptype_string(current_gaptype) << " started @" << current_gap_start << " ." << current_gap_len << std::endl;
+                            break;
+                    }
+                } else {  // A or T or something else
+                    if (current_gaptype != gap_U) {
+                        std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
+                        if (CHECK_GAPLENGTH(current_gap_len, current_gaptype)) {
+                            std::cerr << gaptype_string(current_gaptype) << " end @" << current_gap_start << " >= min len, stashing" << std::endl;
+                            g.push_back(Interval(n, current_gap_start, current_gap_len, current_gaptype));
+                        }
+                        current_gap_start = 0;
+                        current_gap_len = 0;
+                        current_gaptype = gap_U;
+                        std::cerr << "gap reset" << std::endl;
+                    }
+                }
+            }
+            if (current_gaptype != gap_U) {
+                std::cerr << gaptype_string(current_gaptype) << " FINAL @" << current_gap_start << " ." << current_gap_len << " end" << std::endl;
+                if (CHECK_GAPLENGTH(current_gap_len, current_gaptype)) {
+                    std::cerr << gaptype_string(current_gaptype) << " FINAL @" << current_gap_start << " >= min len, stashing" << std::endl;
+                    g.push_back(Interval(n, current_gap_start, current_gap_len, current_gaptype));
+                }
+            }
+            calc_stats();
+        }
+        void fill_N(const std::string& n, const char* s) {
             seq_name = n;
             const char* const start = s;
             uint64_t current_gap_start = 0;
@@ -404,15 +549,13 @@ class FastaFileStats {
                     continue;
                 } else if (current_gap_start) {
                     if (current_gap_len >= min_gap_len)
-                        g.push_back(Interval(n, current_gap_start,
-                                             current_gap_len));
+                        g.push_back(Interval(n, current_gap_start, current_gap_len, gap_N));
                     current_gap_start = 0;
                     current_gap_len = 0;
                 }
             }
             if (current_gap_start && current_gap_len >= min_gap_len)
-                g.push_back(Interval(n, current_gap_start,
-                                     current_gap_len));
+                g.push_back(Interval(n, current_gap_start, current_gap_len, gap_N));
             calc_stats();
         }
         void dump(std::ostream& os, bool do_all = true) const {
@@ -421,8 +564,8 @@ class FastaFileStats {
                     num_min_len << " max=" << max_len;
                 os << " mean=" << mean_len << " med=" << median_len << std::endl;
             for (size_t i = 0; do_all && i < g.size(); ++i)
-                os << "Gap: " << g[i].seq_name << " start:len " << g[i].start <<
-                    ":" << g[i].length << std::endl;
+                os << "Gap: " << g[i].seq_name << " start:len type " << g[i].start <<
+                    ":" << g[i].length << " " << g[i].get_gaptype_short() << std::endl;
         }
         void print_bed(std::ostream& os = std::cout) const {
             for (size_t i = 0; i < g.size(); ++i)
@@ -526,7 +669,7 @@ class FastaFileStats {
             length = k->seq.l;
             if (! length)  // length-0 sequence, because the kseq lib can return it
                 return;
-            gaps.fill(name, k->seq.s);
+            gaps.fill_NCG(name, k->seq.s); //TODO
             composition.fill(name, k->seq.s);
             GC = composition.calc_GC(length - gaps.total_len);
         }
@@ -577,7 +720,7 @@ class FastaFileStats {
             s << sep << "GC";
             s << sep << "GCwN";
             s << sep << "CpG";
-            s << sep << "gapnum";
+            s << sep << "gapnum"; //TODO add gaptype stuff later
             s << sep << "gaptotlen";
             s << sep << "gapminlen";
             s << sep << "gapnminlen";
@@ -601,7 +744,7 @@ class FastaFileStats {
             s << sep << GC;
             s << sep << composition.calc_GC(length);
             s << sep << composition.CpG;
-            s << sep << gaps.num;
+            s << sep << gaps.num; //TODO add gaptype stuff later
             s << sep << gaps.total_len;
             s << sep << gaps.min_len;
             s << sep << gaps.num_min_len;
@@ -642,9 +785,12 @@ class FastaFileStats {
     // -------- c-tor
     //
     FastaFileStats() { }
-    FastaFileStats(const char* fn, uint64_t gsz = 0)
-        : genome_size(gsz)
+    FastaFileStats(const char* fn, uint64_t genomesz = 0, uint64_t gCGmin = 0ULL)
+        : genome_size(genomesz)
     {
+        //debug_gaps = true;
+        //min_gap_CG_len = gCGmin;
+        //track_gaps_CG = min_gap_CG_len > 0ULL;
         run(fn);
     }
 
