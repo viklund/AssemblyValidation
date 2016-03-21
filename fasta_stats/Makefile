@@ -11,7 +11,7 @@ ifeq ($(uname_S),Darwin)
 endif
 
 CXXINCLUDEDIR =
-CXXFLAGS =  $(CXXINCLUDEDIR) -D_FILE_OFFSET_BITS=64 -Wall -ggdb -g3 -O0 -fno-inline -fno-eliminate-unused-debug-types
+CXXFLAGS = -std=c++11 $(CXXINCLUDEDIR) -D_FILE_OFFSET_BITS=64 -Wall -ggdb -g3 -O0 -fno-inline -fno-eliminate-unused-debug-types
 LIBS = -lz
 RM = rm -f
 

@@ -1123,10 +1123,10 @@ class FastaFileStats {
         if (header) {
             std::string nm = (query.empty() ? filename : query);
             os << "track name=\"gaps_" << nm << "\" ";
-            os << "description=\"N-gaps (minimum length " <<
-                min_gap_len << ") for " <<
-                (query.empty() ? "filename " : "sequence ") <<
-                nm << "\"";
+            os << "description=\"N-gaps (minimum length " << min_gap_len << ")";
+            if (track_gaps_CG)
+               os << "and C- and G-gaps (minimum length " << min_gap_CG_len << ")";
+            os << " for " << (query.empty() ? "filename " : "sequence ") << nm << "\"";
             os << std::endl;
         }
         // BED entries for each gap, from each contig in order
